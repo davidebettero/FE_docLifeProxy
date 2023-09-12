@@ -1,0 +1,123 @@
+<ns1:FatturaElettronica versione="FPR12" xmlns:ns1="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture/v1.2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture/v1.2 fatturapa_v1.2.xsd">
+	<FatturaElettronicaHeader>
+		<DatiTrasmissione>
+			<IdTrasmittente>
+				<IdPaese>IT</IdPaese>
+				<IdCodice>01856380504</IdCodice>
+			</IdTrasmittente>
+			<ProgressivoInvio>000212638</ProgressivoInvio>
+			<FormatoTrasmissione>FPR12</FormatoTrasmissione>
+			<CodiceDestinatario>W7YVJK9</CodiceDestinatario>
+			<ContattiTrasmittente>
+				<Telefono>+39022520081</Telefono>
+			</ContattiTrasmittente>
+		</DatiTrasmissione>
+		<CedentePrestatore>
+			<DatiAnagrafici>
+				<IdFiscaleIVA>
+					<IdPaese>IT</IdPaese>
+					<IdCodice>01856380505</IdCodice>
+				</IdFiscaleIVA>
+				<Anagrafica>
+					<Denominazione>Horsa For</Denominazione>
+				</Anagrafica>
+				<RegimeFiscale>RF01</RegimeFiscale>
+			</DatiAnagrafici>
+			<Sede>
+				<Indirizzo>Viale Monza 338</Indirizzo>
+				<CAP>20128</CAP>
+				<Comune>Milano</Comune>
+				<Provincia>MI</Provincia>
+				<Nazione>IT</Nazione>
+			</Sede>
+			<IscrizioneREA>
+				<Ufficio>MI</Ufficio>
+				<NumeroREA>476693</NumeroREA>
+				<CapitaleSociale>520000.00</CapitaleSociale>
+				<SocioUnico>SU</SocioUnico>
+				<StatoLiquidazione>LN</StatoLiquidazione>
+			</IscrizioneREA>
+		</CedentePrestatore>
+		<CessionarioCommittente>
+			<DatiAnagrafici>
+				<IdFiscaleIVA>
+					<IdPaese>IT</IdPaese>
+					<IdCodice>02631470842</IdCodice>
+				</IdFiscaleIVA>
+				<Anagrafica>
+					<Denominazione>DAKAY SOLAR CLIMA SRL</Denominazione>
+				</Anagrafica>
+			</DatiAnagrafici>
+			<Sede>
+				<Indirizzo>VIALE GIUDICE A. SAETTA 111</Indirizzo>
+				<CAP>92024</CAP>
+				<Comune>CANICATTI'</Comune>
+				<Provincia>AG</Provincia>
+				<Nazione>IT</Nazione>
+			</Sede>
+		</CessionarioCommittente>
+	</FatturaElettronicaHeader>
+	<FatturaElettronicaBody>
+		<DatiGenerali>
+			<DatiGeneraliDocumento>
+				<TipoDocumento>TD04</TipoDocumento>
+				<Divisa>EUR</Divisa>
+				<Data>2023-02-02</Data>
+				<Numero>000212638</Numero>
+				<ImportoTotaleDocumento>172.02</ImportoTotaleDocumento>
+				<Causale>ACCREDITO PER RESO MERCE A STORNO PARZIALE NS. FT. 4032553  </Causale>
+				<Causale>DEL 16/01/23 NS. ORD. 16156290 DDT 9000000164 DEL 04/01/23  </Causale>
+				<Causale>- PROT 54797                                                </Causale>
+				<Causale>VS RESO CON DDT 117 DEL 26/01/23                            </Causale>
+				<Causale>Num. Iscr. Registro A.E.E.    IT08020000003762</Causale>
+				<Causale>Num. Iscr. Cod. Registro P.A. IT12030P00002800</Causale>
+				<Causale>Societa con socio unico e capitale sociale i.v. e soggetta all'attivita di direzione e coordinamento della Beijer Ref AB - Stortorget 8 - 211 34 Malmo - Sweden</Causale>
+				<Causale>Contributo CONAI assolto ove dovuto</Causale>
+				<Causale>Sui ritardati pagamenti verranno applicati interessi moratori e spese come previsto dalle norme vigenti. Per qualunque contestazione e competente esclusivamente il Foro di Milano.</Causale>
+				<Causale>Informativa della Privacy consultabile sul nostro sito internet www.beijerref.it</Causale>
+			</DatiGeneraliDocumento>
+			<DatiOrdineAcquisto>
+				<RiferimentoNumeroLinea>1</RiferimentoNumeroLinea>
+				<IdDocumento>3</IdDocumento>
+				<Data>2023-02-02</Data>
+			</DatiOrdineAcquisto>
+			<DatiFattureCollegate>
+				<IdDocumento>004032553</IdDocumento>
+			</DatiFattureCollegate>
+		</DatiGenerali>
+		<DatiBeniServizi>
+			<DettaglioLinee>
+				<NumeroLinea>1</NumeroLinea>
+				<CodiceArticolo>
+					<CodiceTipo>EAN</CodiceTipo>
+					<CodiceValore>KAXX0930A</CodiceValore>
+				</CodiceArticolo>
+				<Descrizione>RIDUZ CAS 7150/34</Descrizione>
+				<Quantita>30.00</Quantita>
+				<UnitaMisura>PCE</UnitaMisura>
+				<PrezzoUnitario>4.70</PrezzoUnitario>
+				<PrezzoTotale>141.00</PrezzoTotale>
+				<AliquotaIVA>22.00</AliquotaIVA>
+				<AltriDatiGestionali>
+					<TipoDato>NR. ORDINE</TipoDato>
+					<RiferimentoTesto>0080635269</RiferimentoTesto>
+				</AltriDatiGestionali>
+			</DettaglioLinee>
+			<DatiRiepilogo>
+				<AliquotaIVA>22.00</AliquotaIVA>
+				<ImponibileImporto>141.00</ImponibileImporto>
+				<Imposta>31.02</Imposta>
+				<EsigibilitaIVA>I</EsigibilitaIVA>
+			</DatiRiepilogo>
+		</DatiBeniServizi>
+		<DatiPagamento>
+			<CondizioniPagamento>TP01</CondizioniPagamento>
+			<DettaglioPagamento>
+				<ModalitaPagamento>MP12</ModalitaPagamento>
+				<DataScadenzaPagamento>2023-04-30</DataScadenzaPagamento>
+				<ImportoPagamento>172.02</ImportoPagamento>
+				<IBAN>IT61G0306920705000800850194</IBAN>
+			</DettaglioPagamento>
+		</DatiPagamento>
+	</FatturaElettronicaBody>
+</ns1:FatturaElettronica>

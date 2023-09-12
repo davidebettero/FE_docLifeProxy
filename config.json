@@ -1,0 +1,28 @@
+[{
+        "idmdocument": "horsa_RegistriIVA",
+        "doclife":{
+    "doclifeNodeRef": "51efca34-9b93-4396-8fb6-5c07b1b6056e",
+    "docLifeAspect": "doclife:registroFiscaleLA",
+    "attributes":[
+        {"idm":"Esercizio",
+        "doclife":"doclife:rfEsercizio"
+     },
+    {"idm":"Registro",
+    "doclife":"doclife:rfCodiceRegistro"
+    }
+    ]
+}
+},
+{
+    "idmdocument": "horsa_LibroGiornale",
+    "doclife":{
+"doclifeNodeRef": "51efca34-9b93-4396-8fb6-5c07b1b6056e",
+"docLifeAspect": "doclife:registroFiscaleLA",
+"attributes":[
+    {"idm":"Esercizio",
+    "doclife":"doclife:rfEsercizio"
+ }
+]
+}
+}
+]

@@ -1,0 +1,88 @@
+info:
+  version: v1
+  title: Horsa - IDM Gateway
+  description: Doclife and HorsaFE Gateway from IDM
+schemes:
+  - https
+  - http
+produces:
+  - application/json
+basePath: /
+host: 10.125.14.114:16102
+swagger: '2.0'
+definitions:
+  Error:
+    type: object
+    properties:
+      field:
+        type: string
+      Message:
+        type: string
+      code:
+        type: string
+      type: 
+        type: string
+paths:
+  /postToDocLife:
+    post:
+      summary: Send to DocLife
+      description: Send document to DocLife
+      consumes:
+        - application/xml
+      responses:
+        '200':
+          description: On success
+          schema:
+            type: object
+            properties: {}
+        default:
+          description: On error
+          schema:
+            $ref: '#/definitions/Error'
+      parameters:
+        - required: true
+          in: query
+          type: string
+          name: folder
+          description: DocLife Folder
+        - required: false
+          in: query
+          type: string
+          name: overwrite
+          description: DocLife Overwrite existing
+        - in: body
+          name: SyncContentDocument
+          description: The user to create.
+          schema:
+            type: object
+        - in: header
+          name: targetURL
+          type: string
+          required: true
+  /postToHorsaFE:
+    post:
+      summary: Send to HorsaFE
+      description: Send document to HorsaFE
+      consumes:
+        - application/xml
+      responses:
+        '200':
+          description: On success
+          schema:
+            type: object
+            properties: {}
+        default:
+          description: On error
+          schema:
+            $ref: '#/definitions/Error'
+      parameters:
+        - in: body
+          name: SyncContentDocument
+          description: The user to create.
+          schema:
+            type: object
+        - in: header
+          name: targetURL
+          type: string
+          required: true
+  

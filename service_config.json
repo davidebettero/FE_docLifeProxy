@@ -1,0 +1,6 @@
+{
+  "name": "horsaGw",
+  "description": "D. Guastalli",
+  "script": "D:\\horsa_docLifeProxy\\proxy.js",
+  "nodeOptions": ["--harmony", "--max_old_space_size=4096"]
+}
