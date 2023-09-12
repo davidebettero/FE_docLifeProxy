@@ -294,7 +294,7 @@ app.get("/retrievePassiveInvoices", async (req, res) => {
             atp2.data != null &&
             atp2.data !== ""
           ) {
-            let base64Invoice = btoa(atp2.data);
+            let base64Invoice = btoa(atp2.data.replace(/\uFFFD/g, ""));
             temp[i].RawData =
               base64Invoice === undefined ||
               base64Invoice === null ||
@@ -305,7 +305,9 @@ app.get("/retrievePassiveInvoices", async (req, res) => {
             //console.log(typeof atp2.data);
 
             const xml = require("xml-parse");
-            var xmlInvoice = new xml.DOM(xml.parse(atp2.data));
+            var xmlInvoice = new xml.DOM(
+              xml.parse(atp2.data.replace(/\uFFFD/g, ""))
+            );
             var PaeseTrasmittente =
               xmlInvoice.document.getElementsByTagName("IdPaese")[0];
             var CodiceTrasmittente =
@@ -322,20 +324,40 @@ app.get("/retrievePassiveInvoices", async (req, res) => {
               xmlInvoice.document.getElementsByTagName("IdCodice")[2];
 
             //console.log(PaeseTrasmittente.childNodes[0].text);
-            temp[i].PaeseTrasmittente = PaeseTrasmittente.childNodes[0].text;
+            temp[i].PaeseTrasmittente =
+              PaeseTrasmittente === undefined
+                ? ""
+                : PaeseTrasmittente.childNodes[0].text;
             //console.log(CodiceTrasmittente.childNodes[0].text);
-            temp[i].CodiceTrasmittente = CodiceTrasmittente.childNodes[0].text;
+            temp[i].CodiceTrasmittente =
+              CodiceTrasmittente === undefined
+                ? ""
+                : CodiceTrasmittente.childNodes[0].text;
             //console.log(PaesePrestatore.childNodes[0].text);
-            temp[i].PaesePrestatore = PaesePrestatore.childNodes[0].text;
+            temp[i].PaesePrestatore =
+              PaesePrestatore === undefined
+                ? ""
+                : PaesePrestatore.childNodes[0].text;
             //console.log(CodicePrestatore.childNodes[0].text);
-            temp[i].CodicePrestatore = CodicePrestatore.childNodes[0].text;
+            temp[i].CodicePrestatore =
+              CodicePrestatore === undefined
+                ? ""
+                : CodicePrestatore.childNodes[0].text;
             //console.log(DenominazionePrestatore.childNodes[0].text);
             temp[i].DenominazionePrestatore =
-              DenominazionePrestatore.childNodes[0].text;
+              DenominazionePrestatore === undefined
+                ? ""
+                : DenominazionePrestatore.childNodes[0].text;
             //console.log(PaeseCommittente.childNodes[0].text);
-            temp[i].PaeseCommittente = PaeseCommittente.childNodes[0].text;
+            temp[i].PaeseCommittente =
+              PaeseCommittente === undefined
+                ? ""
+                : PaeseCommittente.childNodes[0].text;
             //console.log(CodiceCommittente.childNodes[0].text);
-            temp[i].CodiceCommittente = CodiceCommittente.childNodes[0].text;
+            temp[i].CodiceCommittente =
+              CodiceCommittente === undefined
+                ? ""
+                : CodiceCommittente.childNodes[0].text;
           }
         } catch (err) {
           var errorMessage2 = atp2.errorMessage;
@@ -411,8 +433,7 @@ app.get("/retrievePassiveInvoices", async (req, res) => {
   return res.send(doc.toString({ pretty: true }));
 });
 
-//--------------------------------DA COMPLETARE!!!!!!!!!!!!!!!!!---------------------------
-// 2023-09-11 - D. Bettero - call api/v1/cc/attivo/ricevute/listUnacknowledged and for each receipt call api/v1/cc/attivo/ricevute/{id}/download.
+// 2023-09-12 - D. Bettero - call api/v1/cc/attivo/ricevute/listUnacknowledged and for each receipt call api/v1/cc/attivo/ricevute/{id}/download.
 // Return an xml containing the base64 of receipts and their attributes (if valued)
 app.get("/retrieveReceiptsActiveInvoices", async (req, res) => {
   var basicAuth = req.header("authorization");
@@ -427,24 +448,22 @@ app.get("/retrieveReceiptsActiveInvoices", async (req, res) => {
     "https://horsa-for.partner.horsafe.net/services/api/v1/cc/attivo/ricevute/listUnacknowledged";
   let temp = [];
   var builder = require("xmlbuilder");
-  var doc = builder.create("PassiveInvoices");
+  var doc = builder.create("ActiveReceipts");
   const result = await axios.get(url, config).then((atp) => {
     try {
       console.log(atp.data.result.length);
 
       for (let i = 0; i < atp.data.result.length; i++) {
-        let invoiceID = atp.data.result[i].id;
+        let receiptID = atp.data.result[i].id;
         let sdiID = atp.data.result[i].sdiId;
-        let fileName = atp.data.result[i].nome; // missing extension (.xml)
-        let documentDate = atp.data.result[i].dataFattura;
-        let documentNumber = atp.data.result[i].numeroFattura;
+        let invoiceID = atp.data.result[i].idFattura;
+        let invoiceName = atp.data.result[i].nomeFattura; // missing extension (.xml)
 
         let actual = {
-          id: invoiceID,
+          receiptID: receiptID,
           sdiID: sdiID,
-          fileName: fileName + ".xml",
-          documentDate: documentDate,
-          documentNumber: documentNumber,
+          invoiceID: invoiceID,
+          invoiceName: invoiceName + ".xml",
         };
         temp.push(actual);
         //console.log(actual);
@@ -458,12 +477,16 @@ app.get("/retrieveReceiptsActiveInvoices", async (req, res) => {
   //console.log(temp.length);
   for (let i = 0; i < temp.length; i++) {
     //console.log(temp[i].id);
-    if (temp[i].id != null && temp[i].id != undefined && temp[i].id != "") {
+    if (
+      temp[i].receiptID != null &&
+      temp[i].receiptID != undefined &&
+      temp[i].receiptID != ""
+    ) {
       var url2 =
         "https://horsa-for.partner.horsafe.net/services/api/v1/cc/attivo/ricevute/" +
-        temp[i].id +
+        temp[i].receiptID +
         "/download";
-
+      //console.log(url2);
       const result2 = await axios.get(url2, config).then((atp2) => {
         try {
           if (
@@ -473,7 +496,7 @@ app.get("/retrieveReceiptsActiveInvoices", async (req, res) => {
             atp2.data != null &&
             atp2.data !== ""
           ) {
-            let base64Invoice = btoa(atp2.data);
+            let base64Invoice = btoa(atp2.data.replace(/\uFFFD/g, ""));
             temp[i].RawData =
               base64Invoice === undefined ||
               base64Invoice === null ||
@@ -481,6 +504,53 @@ app.get("/retrieveReceiptsActiveInvoices", async (req, res) => {
                 ? ""
                 : base64Invoice;
             //console.log(base64Invoice);
+
+            const xml = require("xml-parse");
+            var xmlInvoice = new xml.DOM(
+              xml.parse(atp2.data.replace(/\uFFFD/g, ""))
+            );
+
+            var Hash = xmlInvoice.document.getElementsByTagName("Hash")[0];
+            var DataOraRicezione =
+              xmlInvoice.document.getElementsByTagName("DataOraRicezione")[0];
+            var DataOraConsegna =
+              xmlInvoice.document.getElementsByTagName("DataOraConsegna")[0];
+            var CodiceDestinatario =
+              xmlInvoice.document.getElementsByTagName("Codice")[0];
+            var DescrizioneDestinatario =
+              xmlInvoice.document.getElementsByTagName("Descrizione")[0];
+
+            let SigningTime = "";
+            if (
+              atp2.data.includes("SigningTime>") &&
+              atp2.data.indexOf("SigningTime>") !== -1 &&
+              atp2.data.includes("</xades:SigningTime>") &&
+              atp2.data.indexOf("</xades:SigningTime>") !== -1
+            ) {
+              SigningTime = atp2.data.substring(
+                atp2.data.indexOf("SigningTime>") + "SigningTime>".length,
+                atp2.data.indexOf("</xades:SigningTime>")
+              );
+            }
+
+            temp[i].Hash = Hash === undefined ? "" : Hash.childNodes[0].text;
+            temp[i].DataOraRicezione =
+              DataOraRicezione === undefined
+                ? ""
+                : DataOraRicezione.childNodes[0].text;
+            temp[i].DataOraConsegna =
+              DataOraConsegna === undefined
+                ? ""
+                : DataOraConsegna.childNodes[0].text;
+            temp[i].CodiceDestinatario =
+              CodiceDestinatario === undefined
+                ? ""
+                : CodiceDestinatario.childNodes[0].text;
+            temp[i].DescrizioneDestinatario =
+              DescrizioneDestinatario === undefined
+                ? ""
+                : DescrizioneDestinatario.childNodes[0].text;
+            temp[i].SigningTime = SigningTime;
           }
         } catch (err) {
           var errorMessage2 = atp2.errorMessage;
@@ -491,21 +561,46 @@ app.get("/retrieveReceiptsActiveInvoices", async (req, res) => {
   }
   for (let i = 0; i < temp.length; i++) {
     doc
-      .ele("PassiveInvoice")
-      .ele("id")
-      .txt(temp[i].id)
+      .ele("Receipt")
+      .ele("ReceiptID")
+      .txt(temp[i].receiptID === undefined ? "" : temp[i].receiptID)
       .up()
-      .ele("sdi_ID")
-      .txt(temp[i].sdiID)
+      .ele("Sdi_ID")
+      .txt(temp[i].sdiID === undefined ? "" : temp[i].sdiID)
       .up()
-      .ele("FileName")
-      .txt(temp[i].fileName)
+      .ele("InvoiceID")
+      .txt(temp[i].invoiceID === undefined ? "" : temp[i].invoiceID)
       .up()
-      .ele("DocumentDate")
-      .txt(temp[i].documentDate)
+      .ele("InvoiceName")
+      .txt(temp[i].invoiceName === undefined ? "" : temp[i].invoiceName)
       .up()
-      .ele("DocumentNumber")
-      .txt(temp[i].documentNumber)
+      .ele("Hash")
+      .txt(temp[i].Hash === undefined ? "" : temp[i].Hash)
+      .up()
+      .ele("DataOraRicezione")
+      .txt(
+        temp[i].DataOraRicezione === undefined ? "" : temp[i].DataOraRicezione
+      )
+      .up()
+      .ele("DataOraConsegna")
+      .txt(temp[i].DataOraConsegna === undefined ? "" : temp[i].DataOraConsegna)
+      .up()
+      .ele("CodiceDestinatario")
+      .txt(
+        temp[i].CodiceDestinatario === undefined
+          ? ""
+          : temp[i].CodiceDestinatario
+      )
+      .up()
+      .ele("DescrizioneDestinatario")
+      .txt(
+        temp[i].DescrizioneDestinatario === undefined
+          ? ""
+          : temp[i].DescrizioneDestinatario
+      )
+      .up()
+      .ele("SigningTime")
+      .txt(temp[i].SigningTime === undefined ? "" : temp[i].SigningTime)
       .up()
       .ele("RawData")
       .txt(
