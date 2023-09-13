@@ -294,6 +294,20 @@ app.get("/retrievePassiveInvoices", async (req, res) => {
             atp2.data != null &&
             atp2.data !== ""
           ) {
+            //console.log(atp2.data.indexOf("<?xml version="));
+            //console.log(atp2.data.indexOf("</ns3:FatturaElettronica>"));
+            if (
+              atp2.data.indexOf("<?xml version=") !== 0 ||
+              atp2.data.indexOf("</ns3:FatturaElettronica>") +
+                "</ns3:FatturaElettronica>".length !==
+                atp2.data.length
+            )
+              //console.log("qui");
+              atp2.data = atp2.data.substring(
+                atp2.data.indexOf("<?xml version="),
+                atp2.data.indexOf("</ns3:FatturaElettronica>") +
+                  "</ns3:FatturaElettronica>".length
+              );
             let base64Invoice = btoa(atp2.data.replace(/\uFFFD/g, ""));
             temp[i].RawData =
               base64Invoice === undefined ||
