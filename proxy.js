@@ -297,10 +297,12 @@ app.get("/retrievePassiveInvoices", async (req, res) => {
             //console.log(atp2.data.indexOf("<?xml version="));
             //console.log(atp2.data.indexOf("</ns3:FatturaElettronica>"));
             if (
-              atp2.data.indexOf("<?xml version=") !== 0 ||
-              atp2.data.indexOf("</ns3:FatturaElettronica>") +
+              (atp2.data.indexOf("<?xml version=") !== 0 &&
+                atp2.data.indexOf("<?xml version=") !== -1) ||
+              (atp2.data.indexOf("</ns3:FatturaElettronica>") +
                 "</ns3:FatturaElettronica>".length !==
-                atp2.data.length
+                atp2.data.length &&
+                atp2.data.indexOf("</ns3:FatturaElettronica>") !== -1)
             )
               //console.log("qui");
               atp2.data = atp2.data.substring(
