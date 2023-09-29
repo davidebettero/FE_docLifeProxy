@@ -26,6 +26,13 @@ var options = {
 */
 
 var app = express();
+
+const agent = new https.Agent({
+  rejectUnauthorized: false,
+});
+
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+
 var bodyParser = require("body-parser");
 const { Console } = require("console");
 require("body-parser-xml")(bodyParser);
@@ -121,7 +128,9 @@ app.post("/postToHorsaFE", (req, res) => {
           return res.end(jsonContent);
         });
     })
-    .catch(function (error) {});
+    .catch(function (error) {
+      console.log(error);
+    });
 });
 
 app.post("/postToDocLife", (req, res) => {
@@ -230,7 +239,9 @@ app.post("/postToDocLife", (req, res) => {
           return res.send(error.response.data);
         });
     })
-    .catch(function (error) {});
+    .catch(function (error) {
+      console.log(error);
+    });
 });
 
 // D. Bettero - 2023-09-11 - call api/v1/cc/passivo/listUnacknowledged and for each invoice call api/v1/cc/passivo/{id}/download.
@@ -386,56 +397,40 @@ app.get("/retrievePassiveInvoices", async (req, res) => {
     doc
       .ele("PassiveInvoice")
       .ele("ID")
-      .txt(temp[i].id === undefined ? "" : temp[i].id)
+      .txt(temp[i].id ?? "")
       .up()
       .ele("Sdi_ID")
-      .txt(temp[i].sdiID === undefined ? "" : temp[i].sdiID)
+      .txt(temp[i].sdiID ?? "")
       .up()
       .ele("FileName")
-      .txt(temp[i].fileName === undefined ? "" : temp[i].fileName)
+      .txt(temp[i].fileName ?? "")
       .up()
       .ele("DocumentDate")
-      .txt(temp[i].documentDate === undefined ? "" : temp[i].documentDate)
+      .txt(temp[i].documentDate ?? "")
       .up()
       .ele("DocumentNumber")
-      .txt(temp[i].documentNumber === undefined ? "" : temp[i].documentNumber)
+      .txt(temp[i].documentNumber ?? "")
       .up()
       .ele("PaeseTrasmittente")
-      .txt(
-        temp[i].PaeseTrasmittente === undefined ? "" : temp[i].PaeseTrasmittente
-      )
+      .txt(temp[i].PaeseTrasmittente ?? "")
       .up()
       .ele("CodiceTrasmittente")
-      .txt(
-        temp[i].CodiceTrasmittente === undefined
-          ? ""
-          : temp[i].CodiceTrasmittente
-      )
+      .txt(temp[i].CodiceTrasmittente ?? "")
       .up()
       .ele("PaesePrestatore")
-      .txt(temp[i].PaesePrestatore === undefined ? "" : temp[i].PaesePrestatore)
+      .txt(temp[i].PaesePrestatore ?? "")
       .up()
       .ele("CodicePrestatore")
-      .txt(
-        temp[i].CodicePrestatore === undefined ? "" : temp[i].CodicePrestatore
-      )
+      .txt(temp[i].CodicePrestatore ?? "")
       .up()
       .ele("DenominazionePrestatore")
-      .txt(
-        temp[i].DenominazionePrestatore === undefined
-          ? ""
-          : temp[i].DenominazionePrestatore
-      )
+      .txt(temp[i].DenominazionePrestatore ?? "")
       .up()
       .ele("PaeseCommittente")
-      .txt(
-        temp[i].PaeseCommittente === undefined ? "" : temp[i].PaeseCommittente
-      )
+      .txt(temp[i].PaeseCommittente ?? "")
       .up()
       .ele("CodiceCommittente")
-      .txt(
-        temp[i].CodiceCommittente === undefined ? "" : temp[i].CodiceCommittente
-      )
+      .txt(temp[i].CodiceCommittente ?? "")
       .up()
       .ele("RawData")
       .txt(
@@ -579,44 +574,34 @@ app.get("/retrieveReceiptsActiveInvoices", async (req, res) => {
     doc
       .ele("Receipt")
       .ele("ReceiptID")
-      .txt(temp[i].receiptID === undefined ? "" : temp[i].receiptID)
+      .txt(temp[i].receiptID ?? "")
       .up()
       .ele("Sdi_ID")
-      .txt(temp[i].sdiID === undefined ? "" : temp[i].sdiID)
+      .txt(temp[i].sdiID ?? "")
       .up()
       .ele("InvoiceID")
-      .txt(temp[i].invoiceID === undefined ? "" : temp[i].invoiceID)
+      .txt(temp[i].invoiceID ?? "")
       .up()
       .ele("InvoiceName")
-      .txt(temp[i].invoiceName === undefined ? "" : temp[i].invoiceName)
+      .txt(temp[i].invoiceName ?? "")
       .up()
       .ele("Hash")
-      .txt(temp[i].Hash === undefined ? "" : temp[i].Hash)
+      .txt(temp[i].Hash ?? "")
       .up()
       .ele("DataOraRicezione")
-      .txt(
-        temp[i].DataOraRicezione === undefined ? "" : temp[i].DataOraRicezione
-      )
+      .txt(temp[i].DataOraRicezione ?? "")
       .up()
       .ele("DataOraConsegna")
-      .txt(temp[i].DataOraConsegna === undefined ? "" : temp[i].DataOraConsegna)
+      .txt(temp[i].DataOraConsegna ?? "")
       .up()
       .ele("CodiceDestinatario")
-      .txt(
-        temp[i].CodiceDestinatario === undefined
-          ? ""
-          : temp[i].CodiceDestinatario
-      )
+      .txt(temp[i].CodiceDestinatario ?? "")
       .up()
       .ele("DescrizioneDestinatario")
-      .txt(
-        temp[i].DescrizioneDestinatario === undefined
-          ? ""
-          : temp[i].DescrizioneDestinatario
-      )
+      .txt(temp[i].DescrizioneDestinatario ?? "")
       .up()
       .ele("SigningTime")
-      .txt(temp[i].SigningTime === undefined ? "" : temp[i].SigningTime)
+      .txt(temp[i].SigningTime ?? "")
       .up()
       .ele("RawData")
       .txt(
