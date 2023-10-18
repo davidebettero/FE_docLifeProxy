@@ -618,7 +618,7 @@ app.get("/retrieveReceiptsActiveInvoices", async (req, res) => {
 // 2023-10-18 - D. Bettero - transforms with a stylesheet the xml of the active invoice into its pdf.
 // Return an xml containing the base64 of the pdf invoice and its attributes (if valued)
 // Input: Sync.ContentDocument of active invoice's class
-app.get("/getActiveInvoicePDF", async (req, res) => {
+app.post("/getActiveInvoicePDF", async (req, res) => {
   var basicAuth = req.header("authorization");
   const config = {
     headers: {
@@ -710,7 +710,7 @@ app.get("/getActiveInvoicePDF", async (req, res) => {
 // 2023-10-18 - D. Bettero - transforms with a stylesheet the xml of the passive invoice into its pdf.
 // Return an xml containing the base64 of the pdf invoice and its attributes (if valued)
 // Input: Sync.ContentDocument of passive invoice's class
-app.get("/getPassiveInvoicePDF", async (req, res) => {
+app.post("/getPassiveInvoicePDF", async (req, res) => {
   var basicAuth = req.header("authorization");
   const config = {
     headers: {

@@ -4,12 +4,8 @@
     "title": "Horsa - IDM Gateway",
     "description": "Doclife and HorsaFE Gateway from IDM"
   },
-  "schemes": [
-    "https"
-  ],
-  "produces": [
-    "application/json"
-  ],
+  "schemes": ["https"],
+  "produces": ["application/json"],
   "basePath": "/infor/CustomerApi/horsagw_dl/horsagwdl",
   "host": "ios.corp.sime.it:7443",
   "swagger": "2.0",
@@ -37,9 +33,7 @@
       "post": {
         "summary": "Send to DocLife",
         "description": "Send document to DocLife",
-        "consumes": [
-          "application/xml"
-        ],
+        "consumes": ["application/xml"],
         "responses": {
           "200": {
             "description": "On success",
@@ -91,9 +85,7 @@
       "post": {
         "summary": "Send to HorsaFE",
         "description": "Send document to HorsaFE",
-        "consumes": [
-          "application/xml"
-        ],
+        "consumes": ["application/xml"],
         "responses": {
           "200": {
             "description": "On success",
@@ -129,13 +121,9 @@
     },
     "/retrieveReceiptsActiveInvoices": {
       "get": {
-        "tags": [
-          "Api Clienti Consultatori (Ciclo Attivo)"
-        ],
+        "tags": ["Api Clienti Consultatori (Ciclo Attivo)"],
         "summary": "Lista dei base64 delle ricevute attive da recuperare (primi 10 elementi) con i relativi attributi",
-        "produces": [
-          "application/xml"
-        ],
+        "produces": ["application/xml"],
         "responses": {
           "200": {
             "description": "OK"
@@ -152,15 +140,45 @@
         }
       }
     },
+    "/getActiveInvoicePDF": {
+      "post": {
+        "tags": ["Api Clienti Consultatori (Ciclo Attivo)"],
+        "summary": "Converts xml to pdf using a stylesheet",
+        "consumes": ["application/xml"],
+        "produces": ["application/xml"],
+        "responses": {
+          "200": {
+            "description": "On success",
+            "schema": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "On error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "body",
+            "name": "SyncContentDocument",
+            "description": "The user to create.",
+            "schema": {
+              "type": "object"
+            },
+            "required": true
+          }
+        ]
+      }
+    },
     "/retrievePassiveInvoices": {
       "get": {
-        "tags": [
-          "Api Clienti Consultatori (Ciclo Passivo)"
-        ],
+        "tags": ["Api Clienti Consultatori (Ciclo Passivo)"],
         "summary": "Lista dei base64 delle fatture da recuperare (primi 10 elementi) e dei relativi attributi",
-        "produces": [
-          "application/xml"
-        ],
+        "produces": ["application/xml"],
         "responses": {
           "200": {
             "description": "OK"
@@ -175,6 +193,40 @@
             "description": "Not Found"
           }
         }
+      }
+    },
+    "/getPassiveInvoicePDF": {
+      "post": {
+        "tags": ["Api Clienti Consultatori (Ciclo Passivo)"],
+        "summary": "Converts xml to pdf using a stylesheet",
+        "consumes": ["application/xml"],
+        "produces": ["application/xml"],
+        "responses": {
+          "200": {
+            "description": "On success",
+            "schema": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "On error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "body",
+            "name": "SyncContentDocument",
+            "description": "The user to create.",
+            "schema": {
+              "type": "object"
+            },
+            "required": true
+          }
+        ]
       }
     }
   }
