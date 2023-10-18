@@ -615,6 +615,190 @@ app.get("/retrieveReceiptsActiveInvoices", async (req, res) => {
   return res.send(doc.toString({ pretty: true }));
 });
 
+// 2023-10-18 - D. Bettero - transforms with a stylesheet the xml of the active invoice into its pdf.
+// Return an xml containing the base64 of the pdf invoice and its attributes (if valued)
+// Input: Sync.ContentDocument of active invoice's class
+app.get("/getActiveInvoicePDF", async (req, res) => {
+  var basicAuth = req.header("authorization");
+  const config = {
+    headers: {
+      Authorization: basicAuth,
+    },
+    maxRedirects: 21,
+  };
+
+  var rawdata = req.body;
+  let dataArea = rawdata.SyncContentDocument.DataArea[0].ContentDocument;
+  let pid = dataArea[0].DocumentID[0].ID[0]._;
+  let FileName = "";
+  let documentResource = "";
+  let FileURL = "";
+  try {
+    documentResource = dataArea[0].DocumentResource[0] ?? "";
+    FileName = documentResource.FileName[0] ?? "";
+    FileURL = documentResource.URL[0] ?? "";
+    //console.log(dataArea[0].DocumentMetaData[0].Attribute);
+  } catch (err) {
+    //console.log(dataArea);
+    console.log(err);
+    FileName = "ERROR";
+  }
+  if (FileName == "ERROR") return;
+
+  FileURL = FileURL.replace("&amp;", "&").trim();
+
+  const builder = require("xmlbuilder");
+  var doc = builder.create("ActiveInvoicePDF");
+
+  axios.get(FileURL, config).then((atp) => {
+    try {
+      let fattura = atp.data; // invoice xml (type: string)
+
+      var fs = require("fs");
+      let pathXSL = "Stylesheets/FA_family-1001-PA-vFPR12.xsl"; // path to stylesheet
+      fs.readFile(pathXSL, function (err, data) {
+        if (err) {
+          console.log("err: " + err);
+        }
+        let xslStyleSheet = data.toString(); // the stylesheet to be apply to the invoice (type: string)
+
+        var SaxonJS = require("saxon-js");
+        const resultString = SaxonJS.XPath.evaluate(
+          `transform(map { 'source-node' : parse-xml($xml), 'stylesheet-text' : $xslt, 'delivery-format' : 'serialized' })?output`,
+          null,
+          { params: { xml: fattura, xslt: xslStyleSheet } }
+        );
+        var pdf = require("html-pdf");
+        var html = resultString;
+        var options = {
+          format: "A4",
+          orientation: "portrait",
+        };
+        pdf.create(html, options).toBuffer(function (err, buffer) {
+          if (err) return console.log(err);
+          let rawData = buffer.toString("base64");
+
+          let i = 0;
+          let attrs = {};
+
+          while (dataArea[0].DocumentMetaData[0].Attribute[i] !== undefined) {
+            attrs[dataArea[0].DocumentMetaData[0].Attribute[i].$["id"]] =
+              dataArea[0].DocumentMetaData[0].Attribute[i].AttributeValue[0]
+                .toString()
+                .trim();
+            i++;
+          }
+          for (var [key, value] of Object.entries(attrs)) {
+            if (key === "FileName") {
+              value = value.replace(".xml", ".pdf");
+            }
+            doc.ele(key).txt(value).up();
+          }
+          doc.ele("RawData").txt(rawData);
+
+          return res.send(doc.toString({ pretty: true }));
+        });
+      });
+    } catch (err) {
+      var errorMessage = atp.errorMessage;
+      console.log("errorMessage: " + errorMessage);
+      return res.send(doc.toString({ pretty: true }));
+    }
+  });
+});
+
+// 2023-10-18 - D. Bettero - transforms with a stylesheet the xml of the passive invoice into its pdf.
+// Return an xml containing the base64 of the pdf invoice and its attributes (if valued)
+// Input: Sync.ContentDocument of passive invoice's class
+app.get("/getPassiveInvoicePDF", async (req, res) => {
+  var basicAuth = req.header("authorization");
+  const config = {
+    headers: {
+      Authorization: basicAuth,
+    },
+    maxRedirects: 21,
+  };
+
+  var rawdata = req.body;
+  let dataArea = rawdata.SyncContentDocument.DataArea[0].ContentDocument;
+  let pid = dataArea[0].DocumentID[0].ID[0]._;
+  let FileName = "";
+  let documentResource = "";
+  let FileURL = "";
+  try {
+    documentResource = dataArea[0].DocumentResource[0] ?? "";
+    FileName = documentResource.FileName[0] ?? "";
+    FileURL = documentResource.URL[0] ?? "";
+    //console.log(dataArea[0].DocumentMetaData[0].Attribute);
+  } catch (err) {
+    //console.log(dataArea);
+    console.log(err);
+    FileName = "ERROR";
+  }
+  if (FileName == "ERROR") return;
+
+  FileURL = FileURL.replace("&amp;", "&").trim();
+
+  const builder = require("xmlbuilder");
+  var doc = builder.create("PassiveInvoicePDF");
+
+  axios.get(FileURL, config).then((atp) => {
+    try {
+      let fattura = atp.data; // invoice xml (type: string)
+
+      var fs = require("fs");
+      let pathXSL = "Stylesheets/FP_family-1005-PA-vFPR12.xsl"; // path to stylesheet
+      fs.readFile(pathXSL, function (err, data) {
+        if (err) {
+          console.log("err: " + err);
+        }
+        let xslStyleSheet = data.toString(); // the stylesheet to be apply to the invoice (type: string)
+
+        var SaxonJS = require("saxon-js");
+        const resultString = SaxonJS.XPath.evaluate(
+          `transform(map { 'source-node' : parse-xml($xml), 'stylesheet-text' : $xslt, 'delivery-format' : 'serialized' })?output`,
+          null,
+          { params: { xml: fattura, xslt: xslStyleSheet } }
+        );
+        var pdf = require("html-pdf");
+        var html = resultString;
+        var options = {
+          format: "A4",
+          orientation: "portrait",
+        };
+        pdf.create(html, options).toBuffer(function (err, buffer) {
+          if (err) return console.log(err);
+          let rawData = buffer.toString("base64");
+
+          let i = 0;
+          let attrs = {};
+
+          while (dataArea[0].DocumentMetaData[0].Attribute[i] !== undefined) {
+            attrs[dataArea[0].DocumentMetaData[0].Attribute[i].$["id"]] =
+              dataArea[0].DocumentMetaData[0].Attribute[i].AttributeValue[0]
+                .toString()
+                .trim();
+            i++;
+          }
+          for (var [key, value] of Object.entries(attrs)) {
+            if (key === "FileName") {
+              value = value.replace(".xml", ".pdf");
+            }
+            doc.ele(key).txt(value).up();
+          }
+          doc.ele("RawData").txt(rawData);
+
+          return res.send(doc.toString({ pretty: true }));
+        });
+      });
+    } catch (err) {
+      var errorMessage = atp.errorMessage;
+      console.log("errorMessage: " + errorMessage);
+      return res.send(doc.toString({ pretty: true }));
+    }
+  });
+});
+
 //var httpsServer = https.createServer(options, app);
 //TODO: Change back to https
 var httpsServer = http.createServer(app);
