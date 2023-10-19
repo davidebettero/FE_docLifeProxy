@@ -683,9 +683,12 @@ app.post("/getActiveInvoicePDF", async (req, res) => {
 
           while (dataArea[0].DocumentMetaData[0].Attribute[i] !== undefined) {
             attrs[dataArea[0].DocumentMetaData[0].Attribute[i].$["id"]] =
-              dataArea[0].DocumentMetaData[0].Attribute[i].AttributeValue[0]
-                .toString()
-                .trim();
+              dataArea[0].DocumentMetaData[0].Attribute[i].AttributeValue ===
+              undefined
+                ? ""
+                : dataArea[0].DocumentMetaData[0].Attribute[i].AttributeValue[0]
+                    .toString()
+                    .trim();
             i++;
           }
           for (var [key, value] of Object.entries(attrs)) {
@@ -775,9 +778,12 @@ app.post("/getPassiveInvoicePDF", async (req, res) => {
 
           while (dataArea[0].DocumentMetaData[0].Attribute[i] !== undefined) {
             attrs[dataArea[0].DocumentMetaData[0].Attribute[i].$["id"]] =
-              dataArea[0].DocumentMetaData[0].Attribute[i].AttributeValue[0]
-                .toString()
-                .trim();
+              dataArea[0].DocumentMetaData[0].Attribute[i].AttributeValue ===
+              undefined
+                ? ""
+                : dataArea[0].DocumentMetaData[0].Attribute[i].AttributeValue[0]
+                    .toString()
+                    .trim();
             i++;
           }
           for (var [key, value] of Object.entries(attrs)) {
