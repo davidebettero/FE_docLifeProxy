@@ -673,6 +673,15 @@ app.post("/getActiveInvoicePDF", async (req, res) => {
         var options = {
           format: "A4",
           orientation: "portrait",
+          footer: {
+            height: "1mm",
+            contents: {
+              first: "",
+              2: "",
+              default: "",
+              last: "",
+            },
+          },
         };
         pdf.create(html, options).toBuffer(function (err, buffer) {
           if (err) return console.log(err);
@@ -768,6 +777,15 @@ app.post("/getPassiveInvoicePDF", async (req, res) => {
         var options = {
           format: "A4",
           orientation: "portrait",
+          footer: {
+            height: "1mm",
+            contents: {
+              first: "",
+              2: "",
+              default: "",
+              last: "",
+            },
+          },
         };
         pdf.create(html, options).toBuffer(function (err, buffer) {
           if (err) return console.log(err);
