@@ -654,63 +654,64 @@ app.post("/getActiveInvoicePDF", async (req, res) => {
     try {
       let fattura = atp.data; // invoice xml (type: string)
 
-      var fs = require("fs");
       let pathXSL = "Stylesheets/FA_family-1001-PA-vFPR12.xsl"; // path to stylesheet
-      fs.readFile(pathXSL, function (err, data) {
-        if (err) {
-          console.log("err: " + err);
-        }
-        let xslStyleSheet = data.toString(); // the stylesheet to be apply to the invoice (type: string)
-
-        var SaxonJS = require("saxon-js");
-        const resultString = SaxonJS.XPath.evaluate(
-          `transform(map { 'source-node' : parse-xml($xml), 'stylesheet-text' : $xslt, 'delivery-format' : 'serialized' })?output`,
-          null,
-          { params: { xml: fattura, xslt: xslStyleSheet } }
-        );
-        var pdf = require("html-pdf");
-        var html = resultString;
-        var options = {
-          format: "A4",
-          orientation: "portrait",
-          footer: {
-            height: "1mm",
-            contents: {
-              first: "",
-              2: "",
-              default: "",
-              last: "",
-            },
-          },
-        };
-        pdf.create(html, options).toBuffer(function (err, buffer) {
-          if (err) return console.log(err);
-          let rawData = buffer.toString("base64");
-
-          let i = 0;
-          let attrs = {};
-
-          while (dataArea[0].DocumentMetaData[0].Attribute[i] !== undefined) {
-            attrs[dataArea[0].DocumentMetaData[0].Attribute[i].$["id"]] =
-              dataArea[0].DocumentMetaData[0].Attribute[i].AttributeValue ===
-              undefined
-                ? ""
-                : dataArea[0].DocumentMetaData[0].Attribute[i].AttributeValue[0]
-                    .toString()
-                    .trim();
-            i++;
-          }
-          for (var [key, value] of Object.entries(attrs)) {
-            if (key === "FileName") {
-              value = value.replace(".xml", ".pdf");
-            }
-            doc.ele(key).txt(value).up();
-          }
-          doc.ele("RawData").txt(rawData);
-
-          return res.send(doc.toString({ pretty: true }));
-        });
+      const exec = require("child_process").exec;
+      const { v4: uuidv4 } = require("uuid");
+      let fileName = uuidv4();
+      const fs = require("fs");
+      fs.writeFileSync("invoices/" + fileName + ".xml", fattura, (err) => {
+        if (err) throw err;
       });
+
+      exec(
+        "java XmlTransform " + pathXSL + " invoices/" + fileName + ".xml",
+        function callback(error, stdout, stderr) {
+          var html = stdout;
+          var pdf = require("html-pdf");
+          var options = {
+            format: "A4",
+            orientation: "portrait",
+            footer: {
+              height: "1mm",
+              contents: {
+                first: "",
+                2: "",
+                default: "",
+                last: "",
+              },
+            },
+          };
+          pdf.create(html, options).toBuffer(function (err, buffer) {
+            if (err) return console.log(err);
+            let rawData = buffer.toString("base64");
+
+            let i = 0;
+            let attrs = {};
+
+            while (dataArea[0].DocumentMetaData[0].Attribute[i] !== undefined) {
+              attrs[dataArea[0].DocumentMetaData[0].Attribute[i].$["id"]] =
+                dataArea[0].DocumentMetaData[0].Attribute[i].AttributeValue ===
+                undefined
+                  ? ""
+                  : dataArea[0].DocumentMetaData[0].Attribute[
+                      i
+                    ].AttributeValue[0]
+                      .toString()
+                      .trim();
+              i++;
+            }
+            for (var [key, value] of Object.entries(attrs)) {
+              if (key === "FileName") {
+                value = value.replace(".xml", ".pdf");
+              }
+              doc.ele(key).txt(value).up();
+            }
+            doc.ele("RawData").txt(rawData);
+
+            return res.send(doc.toString({ pretty: true }));
+          });
+        }
+      );
     } catch (err) {
       var errorMessage = atp.errorMessage;
       console.log("errorMessage: " + errorMessage);
@@ -758,63 +759,64 @@ app.post("/getPassiveInvoicePDF", async (req, res) => {
     try {
       let fattura = atp.data; // invoice xml (type: string)
 
-      var fs = require("fs");
       let pathXSL = "Stylesheets/FP_family-1005-PA-vFPR12.xsl"; // path to stylesheet
-      fs.readFile(pathXSL, function (err, data) {
-        if (err) {
-          console.log("err: " + err);
-        }
-        let xslStyleSheet = data.toString(); // the stylesheet to be apply to the invoice (type: string)
-
-        var SaxonJS = require("saxon-js");
-        const resultString = SaxonJS.XPath.evaluate(
-          `transform(map { 'source-node' : parse-xml($xml), 'stylesheet-text' : $xslt, 'delivery-format' : 'serialized' })?output`,
-          null,
-          { params: { xml: fattura, xslt: xslStyleSheet } }
-        );
-        var pdf = require("html-pdf");
-        var html = resultString;
-        var options = {
-          format: "A4",
-          orientation: "portrait",
-          footer: {
-            height: "1mm",
-            contents: {
-              first: "",
-              2: "",
-              default: "",
-              last: "",
-            },
-          },
-        };
-        pdf.create(html, options).toBuffer(function (err, buffer) {
-          if (err) return console.log(err);
-          let rawData = buffer.toString("base64");
-
-          let i = 0;
-          let attrs = {};
-
-          while (dataArea[0].DocumentMetaData[0].Attribute[i] !== undefined) {
-            attrs[dataArea[0].DocumentMetaData[0].Attribute[i].$["id"]] =
-              dataArea[0].DocumentMetaData[0].Attribute[i].AttributeValue ===
-              undefined
-                ? ""
-                : dataArea[0].DocumentMetaData[0].Attribute[i].AttributeValue[0]
-                    .toString()
-                    .trim();
-            i++;
-          }
-          for (var [key, value] of Object.entries(attrs)) {
-            if (key === "FileName") {
-              value = value.replace(".xml", ".pdf");
-            }
-            doc.ele(key).txt(value).up();
-          }
-          doc.ele("RawData").txt(rawData);
-
-          return res.send(doc.toString({ pretty: true }));
-        });
+      const exec = require("child_process").exec;
+      const { v4: uuidv4 } = require("uuid");
+      let fileName = uuidv4();
+      const fs = require("fs");
+      fs.writeFileSync("invoices/" + fileName + ".xml", fattura, (err) => {
+        if (err) throw err;
       });
+
+      exec(
+        "java XmlTransform " + pathXSL + " invoices/" + fileName + ".xml",
+        function callback(error, stdout, stderr) {
+          var html = stdout;
+          var pdf = require("html-pdf");
+          var options = {
+            format: "A4",
+            orientation: "portrait",
+            footer: {
+              height: "1mm",
+              contents: {
+                first: "",
+                2: "",
+                default: "",
+                last: "",
+              },
+            },
+          };
+          pdf.create(html, options).toBuffer(function (err, buffer) {
+            if (err) return console.log(err);
+            let rawData = buffer.toString("base64");
+
+            let i = 0;
+            let attrs = {};
+
+            while (dataArea[0].DocumentMetaData[0].Attribute[i] !== undefined) {
+              attrs[dataArea[0].DocumentMetaData[0].Attribute[i].$["id"]] =
+                dataArea[0].DocumentMetaData[0].Attribute[i].AttributeValue ===
+                undefined
+                  ? ""
+                  : dataArea[0].DocumentMetaData[0].Attribute[
+                      i
+                    ].AttributeValue[0]
+                      .toString()
+                      .trim();
+              i++;
+            }
+            for (var [key, value] of Object.entries(attrs)) {
+              if (key === "FileName") {
+                value = value.replace(".xml", ".pdf");
+              }
+              doc.ele(key).txt(value).up();
+            }
+            doc.ele("RawData").txt(rawData);
+
+            return res.send(doc.toString({ pretty: true }));
+          });
+        }
+      );
     } catch (err) {
       var errorMessage = atp.errorMessage;
       console.log("errorMessage: " + errorMessage);
