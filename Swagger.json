@@ -228,6 +228,40 @@
           }
         ]
       }
+    },
+    "/getPassiveInvoiceAttachment": {
+      "post": {
+        "tags": ["Api Clienti Consultatori (Ciclo Passivo)"],
+        "summary": "Returns the attachments of the passive invoice (if present)",
+        "consumes": ["application/xml"],
+        "produces": ["application/xml"],
+        "responses": {
+          "200": {
+            "description": "On success",
+            "schema": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "On error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "body",
+            "name": "SyncContentDocument",
+            "description": "The user to create.",
+            "schema": {
+              "type": "object"
+            },
+            "required": true
+          }
+        ]
+      }
     }
   }
 }

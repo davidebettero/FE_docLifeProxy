@@ -99,6 +99,7 @@ app.post("/postToHorsaFE", (req, res) => {
             esito: "ok",
             nodeRef: resp.data.id,
             stato: resp.data.stato,
+            numeroFattura: resp.data.numeroFattura,
             datafattura: resp.data.dataFattura,
             annofattura: resp.data.annoFattura,
             tipodocumento: resp.data.tipoDocumento,
@@ -615,7 +616,7 @@ app.get("/retrieveReceiptsActiveInvoices", async (req, res) => {
   return res.send(doc.toString({ pretty: true }));
 });
 
-// 2023-10-18 - D. Bettero - transforms with a stylesheet the xml of the active invoice into its pdf.
+// D. Bettero - transforms with a stylesheet the xml of the active invoice into its pdf.
 // Return an xml containing the base64 of the pdf invoice and its attributes (if valued)
 // Input: Sync.ContentDocument of active invoice's class
 app.post("/getActiveInvoicePDF", async (req, res) => {
@@ -654,20 +655,29 @@ app.post("/getActiveInvoicePDF", async (req, res) => {
     try {
       let fattura = atp.data; // invoice xml (type: string)
 
-      let pathXSL = "Stylesheets/FA_family-1001-PA-vFPR12.xsl"; // path to stylesheet
+      let pathXSL = "Stylesheets\\FA_family-1001-PA-vFPR12.xsl"; // path to stylesheet
       const exec = require("child_process").exec;
+      let resultString = "";
       const { v4: uuidv4 } = require("uuid");
       let fileName = uuidv4();
       const fs = require("fs");
-      fs.writeFileSync("invoices/" + fileName + ".xml", fattura, (err) => {
-        if (err) throw err;
-      });
-
+      (async () => {
+        await fs.writeFileSync(
+          "invoices/" + fileName + ".xml",
+          fattura,
+          (err) => {
+            if (err) throw err;
+            console.log(err);
+          }
+        );
+      })();
       exec(
-        "java XmlTransform " + pathXSL + " invoices/" + fileName + ".xml",
+        "java XmlTransform " + pathXSL + " invoices\\" + fileName + ".xml",
         function callback(error, stdout, stderr) {
-          var html = stdout;
+          resultString = stdout;
+          //console.log(resultString);
           var pdf = require("html-pdf");
+          var html = resultString;
           var options = {
             format: "A4",
             orientation: "portrait",
@@ -681,6 +691,7 @@ app.post("/getActiveInvoicePDF", async (req, res) => {
               },
             },
           };
+          //console.log(html);
           pdf.create(html, options).toBuffer(function (err, buffer) {
             if (err) return console.log(err);
             let rawData = buffer.toString("base64");
@@ -713,6 +724,7 @@ app.post("/getActiveInvoicePDF", async (req, res) => {
         }
       );
     } catch (err) {
+      console.log(err);
       var errorMessage = atp.errorMessage;
       console.log("errorMessage: " + errorMessage);
       return res.send(doc.toString({ pretty: true }));
@@ -720,7 +732,7 @@ app.post("/getActiveInvoicePDF", async (req, res) => {
   });
 });
 
-// 2023-10-18 - D. Bettero - transforms with a stylesheet the xml of the passive invoice into its pdf.
+// D. Bettero - transforms with a stylesheet the xml of the passive invoice into its pdf.
 // Return an xml containing the base64 of the pdf invoice and its attributes (if valued)
 // Input: Sync.ContentDocument of passive invoice's class
 app.post("/getPassiveInvoicePDF", async (req, res) => {
@@ -759,20 +771,28 @@ app.post("/getPassiveInvoicePDF", async (req, res) => {
     try {
       let fattura = atp.data; // invoice xml (type: string)
 
-      let pathXSL = "Stylesheets/FP_family-1005-PA-vFPR12.xsl"; // path to stylesheet
+      let pathXSL = "Stylesheets\\FP_family-1005-PA-vFPR12.xsl"; // path to stylesheet
       const exec = require("child_process").exec;
+      let resultString = "";
       const { v4: uuidv4 } = require("uuid");
       let fileName = uuidv4();
       const fs = require("fs");
-      fs.writeFileSync("invoices/" + fileName + ".xml", fattura, (err) => {
-        if (err) throw err;
-      });
+      (async () => {
+        await fs.writeFileSync(
+          "invoices/" + fileName + ".xml",
+          fattura,
+          (err) => {
+            if (err) throw err;
+          }
+        );
+      })();
 
       exec(
-        "java XmlTransform " + pathXSL + " invoices/" + fileName + ".xml",
+        "java XmlTransform " + pathXSL + " invoices\\" + fileName + ".xml",
         function callback(error, stdout, stderr) {
-          var html = stdout;
+          resultString = stdout;
           var pdf = require("html-pdf");
+          var html = resultString;
           var options = {
             format: "A4",
             orientation: "portrait",
@@ -808,6 +828,9 @@ app.post("/getPassiveInvoicePDF", async (req, res) => {
             for (var [key, value] of Object.entries(attrs)) {
               if (key === "FileName") {
                 value = value.replace(".xml", ".pdf");
+                if (!value.includes(".pdf")) {
+                  value = value + ".pdf";
+                }
               }
               doc.ele(key).txt(value).up();
             }
@@ -817,6 +840,102 @@ app.post("/getPassiveInvoicePDF", async (req, res) => {
           });
         }
       );
+    } catch (err) {
+      var errorMessage = atp.errorMessage;
+      console.log("errorMessage: " + errorMessage);
+      return res.send(doc.toString({ pretty: true }));
+    }
+  });
+});
+
+// D. Bettero - get the attachments of the passive invoice, if present.
+// Return an xml containing the base64 of the attachments of the pdf invoice and their attributes (if valued).
+// Input: Sync.ContentDocument of passive invoice's class
+app.post("/getPassiveInvoiceAttachment", async (req, res) => {
+  var basicAuth = req.header("authorization");
+  const config = {
+    headers: {
+      Authorization: basicAuth,
+    },
+    maxRedirects: 21,
+  };
+
+  var rawdata = req.body;
+  let dataArea = rawdata.SyncContentDocument.DataArea[0].ContentDocument;
+  let pid = dataArea[0].DocumentID[0].ID[0]._;
+  let FileName = "";
+  let documentResource = "";
+  let FileURL = "";
+  try {
+    documentResource = dataArea[0].DocumentResource[0] ?? "";
+    FileName = documentResource.FileName[0] ?? "";
+    FileURL = documentResource.URL[0] ?? "";
+    //console.log(dataArea[0].DocumentMetaData[0].Attribute);
+  } catch (err) {
+    //console.log(dataArea);
+    console.log(err);
+    FileName = "ERROR";
+  }
+  if (FileName == "ERROR") return;
+
+  FileURL = FileURL.replace("&amp;", "&").trim();
+
+  const builder = require("xmlbuilder");
+  var doc = builder.create("PassiveInvoiceAttachment");
+
+  axios.get(FileURL, config).then((atp) => {
+    try {
+      let fattura = atp.data; // invoice xml (type: string)
+
+      let i = 0;
+      let attrs = {};
+
+      while (dataArea[0].DocumentMetaData[0].Attribute[i] !== undefined) {
+        attrs[dataArea[0].DocumentMetaData[0].Attribute[i].$["id"]] =
+          dataArea[0].DocumentMetaData[0].Attribute[i].AttributeValue ===
+          undefined
+            ? ""
+            : dataArea[0].DocumentMetaData[0].Attribute[i].AttributeValue[0]
+                .toString()
+                .trim();
+        i++;
+      }
+      for (var [key, value] of Object.entries(attrs)) {
+        if (key === "FileName") {
+          value = value.replace(".xml", ".pdf");
+        }
+        doc.ele(key).txt(value).up();
+      }
+
+      const xml = require("xml-parse");
+      var xmlInvoice = new xml.DOM(xml.parse(fattura.replace(/\uFFFD/g, "")));
+
+      i = 0;
+      let attchs = doc.ele("Attachments");
+      while (
+        xmlInvoice.document.getElementsByTagName("NomeAttachment")[i] !==
+          undefined &&
+        xmlInvoice.document.getElementsByTagName("Attachment")[i] !== undefined
+      ) {
+        let nomeAttachment =
+          xmlInvoice.document.getElementsByTagName("NomeAttachment")[i]
+            .childNodes[0].text ?? "";
+        let rawDataAttachment =
+          xmlInvoice.document.getElementsByTagName("Attachment")[i]
+            .childNodes[0].text ?? "";
+        attchs
+          .ele("Attachment")
+          .ele("AttachmentFileName")
+          .txt(nomeAttachment)
+          .up()
+          .ele("RawData")
+          .txt(rawDataAttachment.trim())
+          .up();
+
+        i++;
+      }
+
+      return res.send(doc.toString({ pretty: true }));
     } catch (err) {
       var errorMessage = atp.errorMessage;
       console.log("errorMessage: " + errorMessage);
