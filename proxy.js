@@ -944,6 +944,122 @@ app.post("/getPassiveInvoiceAttachment", async (req, res) => {
   });
 });
 
+// D. Bettero - transforms with a stylesheet the xml of the active invoice receipt into its pdf.
+// Return an xml containing the base64 of the pdf receipt and its attributes (if valued)
+// Input: Sync.ContentDocument of receipt's class
+app.post("/getActiveInvoiceReceiptPDF", async (req, res) => {
+  var basicAuth = req.header("authorization");
+  const config = {
+    headers: {
+      Authorization: basicAuth,
+    },
+    maxRedirects: 21,
+  };
+
+  var rawdata = req.body;
+  let dataArea = rawdata.SyncContentDocument.DataArea[0].ContentDocument;
+  let pid = dataArea[0].DocumentID[0].ID[0]._;
+  let FileName = "";
+  let documentResource = "";
+  let FileURL = "";
+  try {
+    documentResource = dataArea[0].DocumentResource[0] ?? "";
+    FileName = documentResource.FileName[0] ?? "";
+    FileURL = documentResource.URL[0] ?? "";
+    //console.log(dataArea[0].DocumentMetaData[0].Attribute);
+  } catch (err) {
+    //console.log(dataArea);
+    console.log(err);
+    FileName = "ERROR";
+  }
+  if (FileName == "ERROR") return;
+
+  FileURL = FileURL.replace("&amp;", "&").trim();
+
+  const builder = require("xmlbuilder");
+  var doc = builder.create("ActiveReceiptPDF");
+
+  axios.get(FileURL, config).then((atp) => {
+    try {
+      let fattura = atp.data; // receipt xml (type: string)
+
+      let pathXSL = "Stylesheets\\FA_Receipt_family-1003.xsl"; // path to stylesheet
+      const exec = require("child_process").exec;
+      let resultString = "";
+      const { v4: uuidv4 } = require("uuid");
+      let fileName = uuidv4();
+      const fs = require("fs");
+      (async () => {
+        await fs.writeFileSync(
+          "invoices/" + fileName + ".xml",
+          fattura,
+          (err) => {
+            if (err) throw err;
+          }
+        );
+      })();
+
+      exec(
+        "java XmlTransform " + pathXSL + " invoices\\" + fileName + ".xml",
+        function callback(error, stdout, stderr) {
+          resultString = stdout;
+          var pdf = require("html-pdf");
+          var html = resultString;
+          var options = {
+            format: "A4",
+            orientation: "portrait",
+            footer: {
+              height: "1mm",
+              contents: {
+                first: "",
+                2: "",
+                default: "",
+                last: "",
+              },
+            },
+          };
+          pdf.create(html, options).toBuffer(function (err, buffer) {
+            if (err) return console.log(err);
+            let rawData = buffer.toString("base64");
+
+            let i = 0;
+            let attrs = {};
+
+            while (dataArea[0].DocumentMetaData[0].Attribute[i] !== undefined) {
+              attrs[dataArea[0].DocumentMetaData[0].Attribute[i].$["id"]] =
+                dataArea[0].DocumentMetaData[0].Attribute[i].AttributeValue ===
+                undefined
+                  ? ""
+                  : dataArea[0].DocumentMetaData[0].Attribute[
+                      i
+                    ].AttributeValue[0]
+                      .toString()
+                      .trim();
+              i++;
+            }
+            for (var [key, value] of Object.entries(attrs)) {
+              if (key === "NomeFile") {
+                value = value.replace(".xml", ".pdf");
+                if (!value.includes(".pdf")) {
+                  value = value + ".pdf";
+                }
+              }
+              doc.ele(key).txt(value).up();
+            }
+            doc.ele("RawData").txt(rawData);
+
+            return res.send(doc.toString({ pretty: true }));
+          });
+        }
+      );
+    } catch (err) {
+      var errorMessage = atp.errorMessage;
+      console.log("errorMessage: " + errorMessage);
+      return res.send(doc.toString({ pretty: true }));
+    }
+  });
+});
+
 //var httpsServer = https.createServer(options, app);
 //TODO: Change back to https
 var httpsServer = http.createServer(app);
