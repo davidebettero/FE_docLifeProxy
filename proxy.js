@@ -11,6 +11,7 @@ var http = require("http");
 var httpProxy = require("http-proxy");
 const { createProxyMiddleware } = require("http-proxy-middleware");
 var fs = require("fs");
+const util = require("util");
 var contentDisposition = require("content-disposition");
 const { XMLParser, XMLBuilder, XMLValidator } = require("fast-xml-parser");
 
@@ -240,12 +241,10 @@ app.post("/postToDocLife", (req, res) => {
           return res.send(error.response.data);
         });
     })
-    .catch(function (error) {
-      console.log(error);
-    });
+    .catch(function (error) {});
 });
 
-// D. Bettero - 2023-09-11 - call api/v1/cc/passivo/listUnacknowledged and for each invoice call api/v1/cc/passivo/{id}/download.
+// D. Bettero - call api/v1/cc/passivo/listUnacknowledged and for each invoice call api/v1/cc/passivo/{id}/download.
 // Return an xml containing the base64 of invoices and their attributes (if valued)
 app.get("/retrievePassiveInvoices", async (req, res) => {
   var basicAuth = req.header("authorization");
@@ -257,7 +256,7 @@ app.get("/retrievePassiveInvoices", async (req, res) => {
   };
 
   var url =
-    "https://horsa-for.partner.horsafe.net/services/api/v1/cc/passivo/listUnacknowledged";
+    "https://console-fe.horsa.it/services/api/v1/cc/passivo/listUnacknowledged";
   let temp = [];
   var builder = require("xmlbuilder");
   var doc = builder.create("PassiveInvoices");
@@ -271,6 +270,12 @@ app.get("/retrievePassiveInvoices", async (req, res) => {
         let fileName = atp.data.result[i].nome; // missing extension (.xml)
         let documentDate = atp.data.result[i].dataFattura;
         let documentNumber = atp.data.result[i].numeroFattura;
+        let codiceFiscaleMittente =
+          atp.data.result[i].mittente["codiceFiscale"];
+        let nomeMittente = atp.data.result[i].mittente["nome"];
+        let cognomeMittente = atp.data.result[i].mittente["cognome"];
+        let dataRicezioneFattura = atp.data.result[i].dataCreazione;
+        let annoFattura = atp.data.result[i].annoFattura;
 
         let actual = {
           id: invoiceID,
@@ -278,6 +283,11 @@ app.get("/retrievePassiveInvoices", async (req, res) => {
           fileName: fileName + ".xml",
           documentDate: documentDate,
           documentNumber: documentNumber,
+          codiceFiscaleMittente: codiceFiscaleMittente,
+          nomeMittente: nomeMittente,
+          cognomeMittente: cognomeMittente,
+          dataRicezioneFattura: dataRicezioneFattura,
+          annoFattura: annoFattura,
         };
         temp.push(actual);
         //console.log(actual);
@@ -293,9 +303,9 @@ app.get("/retrievePassiveInvoices", async (req, res) => {
     //console.log(temp[i].id);
     if (temp[i].id != null && temp[i].id != undefined && temp[i].id != "") {
       var url2 =
-        "https://horsa-for.partner.horsafe.net/services/api/v1/cc/passivo/" +
+        "https://console-fe.horsa.it/services/api/v1/cc/passivo/" +
         temp[i].id +
-        "/download";
+        "/download/readable";
 
       const result2 = await axios.get(url2, config).then((atp2) => {
         try {
@@ -322,7 +332,9 @@ app.get("/retrievePassiveInvoices", async (req, res) => {
                 atp2.data.indexOf("</ns3:FatturaElettronica>") +
                   "</ns3:FatturaElettronica>".length
               );
-            let base64Invoice = btoa(atp2.data.replace(/\uFFFD/g, ""));
+            let base64Invoice = btoa(
+              atp2.data.replace(/\uFFFD/g, "").replaceAll('"', "'")
+            );
             temp[i].RawData =
               base64Invoice === undefined ||
               base64Invoice === null ||
@@ -334,8 +346,14 @@ app.get("/retrievePassiveInvoices", async (req, res) => {
 
             const xml = require("xml-parse");
             var xmlInvoice = new xml.DOM(
-              xml.parse(atp2.data.replace(/\uFFFD/g, ""))
+              xml.parse(
+                atp2.data
+                  .replace(/\uFFFD/g, "")
+                  .replaceAll('"', "'")
+                  .trim()
+              )
             );
+            /*
             var PaeseTrasmittente =
               xmlInvoice.document.getElementsByTagName("IdPaese")[0];
             var CodiceTrasmittente =
@@ -344,12 +362,70 @@ app.get("/retrievePassiveInvoices", async (req, res) => {
               xmlInvoice.document.getElementsByTagName("IdPaese")[1];
             var CodicePrestatore =
               xmlInvoice.document.getElementsByTagName("IdCodice")[1];
+
+              var CedentePrestatore =
+                xmlInvoice.document.getElementsByTagName("CedentePrestatore")[0].innerXML;
+            var xmlInvoiceCedentePrestatore = new xml.DOM(xml.parse(CedentePrestatore));
             var DenominazionePrestatore =
-              xmlInvoice.document.getElementsByTagName("Denominazione")[0];
+              xmlInvoiceCedentePrestatore.document.getElementsByTagName("Denominazione")[0];
+
             var PaeseCommittente =
               xmlInvoice.document.getElementsByTagName("IdPaese")[2];
             var CodiceCommittente =
               xmlInvoice.document.getElementsByTagName("IdCodice")[2];
+            */
+
+            const DatiTrasmissione =
+              xmlInvoice.document.getElementsByTagName("DatiTrasmissione")[0]
+                .innerXML;
+            var xmlInvoiceDatiTrasmissione = new xml.DOM(
+              xml.parse(DatiTrasmissione)
+            );
+            var PaeseTrasmittente =
+              xmlInvoiceDatiTrasmissione.document.getElementsByTagName(
+                "IdPaese"
+              )[0];
+            var CodiceTrasmittente =
+              xmlInvoiceDatiTrasmissione.document.getElementsByTagName(
+                "IdCodice"
+              )[0];
+            //console.log(PaeseTrasmittente.childNodes[0].text);
+            //console.log(CodiceTrasmittente.childNodes[0].text);
+
+            const CedentePrestatore =
+              xmlInvoice.document.getElementsByTagName("CedentePrestatore")[0]
+                .innerXML;
+            var xmlInvoiceCedentePrestatore = new xml.DOM(
+              xml.parse(CedentePrestatore)
+            );
+            var PaesePrestatore =
+              xmlInvoiceCedentePrestatore.document.getElementsByTagName(
+                "IdPaese"
+              )[0];
+            var CodicePrestatore =
+              xmlInvoiceCedentePrestatore.document.getElementsByTagName(
+                "IdCodice"
+              )[0];
+            var DenominazionePrestatore =
+              xmlInvoiceCedentePrestatore.document.getElementsByTagName(
+                "Denominazione"
+              )[0];
+            //console.log(PaesePrestatore.childNodes[0].text);
+            //console.log(CodicePrestatore.childNodes[0].text);
+            //console.log(DenominazionePrestatore.childNodes[0].text);
+
+            const Committente = xmlInvoice.document.getElementsByTagName(
+              "CessionarioCommittente"
+            )[0].innerXML;
+            var xmlInvoiceCommittente = new xml.DOM(xml.parse(Committente));
+            var PaeseCommittente =
+              xmlInvoiceCommittente.document.getElementsByTagName("IdPaese")[0];
+            var CodiceCommittente =
+              xmlInvoiceCommittente.document.getElementsByTagName(
+                "IdCodice"
+              )[0];
+            //console.log(PaeseCommittente.childNodes[0].text);
+            //console.log(CodiceCommittente.childNodes[0].text);
 
             //console.log(PaeseTrasmittente.childNodes[0].text);
             temp[i].PaeseTrasmittente =
@@ -398,211 +474,161 @@ app.get("/retrievePassiveInvoices", async (req, res) => {
     doc
       .ele("PassiveInvoice")
       .ele("ID")
-      .txt(temp[i].id ?? "")
+      .txt(
+        temp[i].id === undefined
+          ? ""
+          : temp[i].id.toString().replace("<![CDATA[", "").replace("]]>", "")
+      )
       .up()
       .ele("Sdi_ID")
-      .txt(temp[i].sdiID ?? "")
+      .txt(
+        temp[i].sdiID === undefined
+          ? ""
+          : temp[i].sdiID.toString().replace("<![CDATA[", "").replace("]]>", "")
+      )
       .up()
       .ele("FileName")
-      .txt(temp[i].fileName ?? "")
+      .txt(
+        temp[i].fileName === undefined
+          ? ""
+          : temp[i].fileName
+              .toString()
+              .replace("<![CDATA[", "")
+              .replace("]]>", "")
+      )
       .up()
       .ele("DocumentDate")
-      .txt(temp[i].documentDate ?? "")
+      .txt(
+        temp[i].documentDate === undefined
+          ? ""
+          : temp[i].documentDate
+              .toString()
+              .replace("<![CDATA[", "")
+              .replace("]]>", "")
+      )
       .up()
       .ele("DocumentNumber")
-      .txt(temp[i].documentNumber ?? "")
+      .txt(
+        temp[i].documentNumber === undefined
+          ? ""
+          : temp[i].documentNumber
+              .toString()
+              .replace("<![CDATA[", "")
+              .replace("]]>", "")
+      )
+      .up()
+      .ele("SenderCode")
+      .txt(
+        temp[i].codiceFiscaleMittente === undefined
+          ? ""
+          : temp[i].codiceFiscaleMittente
+              .toString()
+              .replace("<![CDATA[", "")
+              .replace("]]>", "")
+      )
+      .up()
+      .ele("SenderSurname")
+      .txt(
+        temp[i].cognomeMittente === undefined
+          ? ""
+          : temp[i].cognomeMittente
+              .toString()
+              .replace("<![CDATA[", "")
+              .replace("]]>", "")
+      )
+      .up()
+      .ele("SenderName")
+      .txt(
+        temp[i].nomeMittente === undefined
+          ? ""
+          : temp[i].nomeMittente
+              .toString()
+              .replace("<![CDATA[", "")
+              .replace("]]>", "")
+      )
+      .up()
+      .ele("DataRicezione")
+      .txt(
+        temp[i].dataRicezioneFattura === undefined
+          ? ""
+          : temp[i].dataRicezioneFattura
+              .toString()
+              .replace("<![CDATA[", "")
+              .replace("]]>", "")
+      )
+      .up()
+      .ele("InvoiceYear")
+      .txt(
+        temp[i].annoFattura === undefined
+          ? ""
+          : temp[i].annoFattura
+              .toString()
+              .replace("<![CDATA[", "")
+              .replace("]]>", "")
+      )
       .up()
       .ele("PaeseTrasmittente")
-      .txt(temp[i].PaeseTrasmittente ?? "")
+      .txt(
+        temp[i].PaeseTrasmittente === undefined
+          ? ""
+          : temp[i].PaeseTrasmittente.toString()
+              .replace("<![CDATA[", "")
+              .replace("]]>", "")
+      )
       .up()
       .ele("CodiceTrasmittente")
-      .txt(temp[i].CodiceTrasmittente ?? "")
+      .txt(
+        temp[i].CodiceTrasmittente === undefined
+          ? ""
+          : temp[i].CodiceTrasmittente.toString()
+              .replace("<![CDATA[", "")
+              .replace("]]>", "")
+      )
       .up()
       .ele("PaesePrestatore")
-      .txt(temp[i].PaesePrestatore ?? "")
+      .txt(
+        temp[i].PaesePrestatore === undefined
+          ? ""
+          : temp[i].PaesePrestatore.toString()
+              .replace("<![CDATA[", "")
+              .replace("]]>", "")
+      )
       .up()
       .ele("CodicePrestatore")
-      .txt(temp[i].CodicePrestatore ?? "")
+      .txt(
+        temp[i].CodicePrestatore === undefined
+          ? ""
+          : temp[i].CodicePrestatore.toString()
+              .replace("<![CDATA[", "")
+              .replace("]]>", "")
+      )
       .up()
       .ele("DenominazionePrestatore")
-      .txt(temp[i].DenominazionePrestatore ?? "")
+      .txt(
+        temp[i].DenominazionePrestatore === undefined
+          ? ""
+          : temp[i].DenominazionePrestatore.toString()
+              .replace("<![CDATA[", "")
+              .replace("]]>", "")
+      )
       .up()
       .ele("PaeseCommittente")
-      .txt(temp[i].PaeseCommittente ?? "")
+      .txt(
+        temp[i].PaeseCommittente === undefined
+          ? ""
+          : temp[i].PaeseCommittente.toString()
+              .replace("<![CDATA[", "")
+              .replace("]]>", "")
+      )
       .up()
       .ele("CodiceCommittente")
-      .txt(temp[i].CodiceCommittente ?? "")
-      .up()
-      .ele("RawData")
       .txt(
-        temp[i].RawData === undefined ||
-          temp[i].RawData === null ||
-          temp[i].RawData === ""
+        temp[i].CodiceCommittente === undefined
           ? ""
-          : temp[i].RawData
-      );
-  }
-  return res.send(doc.toString({ pretty: true }));
-});
-
-// 2023-09-12 - D. Bettero - call api/v1/cc/attivo/ricevute/listUnacknowledged and for each receipt call api/v1/cc/attivo/ricevute/{id}/download.
-// Return an xml containing the base64 of receipts and their attributes (if valued)
-app.get("/retrieveReceiptsActiveInvoices", async (req, res) => {
-  var basicAuth = req.header("authorization");
-  const config = {
-    headers: {
-      Authorization: basicAuth,
-    },
-    maxRedirects: 21,
-  };
-
-  var url =
-    "https://horsa-for.partner.horsafe.net/services/api/v1/cc/attivo/ricevute/listUnacknowledged";
-  let temp = [];
-  var builder = require("xmlbuilder");
-  var doc = builder.create("ActiveReceipts");
-  const result = await axios.get(url, config).then((atp) => {
-    try {
-      console.log(atp.data.result.length);
-
-      for (let i = 0; i < atp.data.result.length; i++) {
-        let receiptID = atp.data.result[i].id;
-        let sdiID = atp.data.result[i].sdiId;
-        let invoiceID = atp.data.result[i].idFattura;
-        let invoiceName = atp.data.result[i].nomeFattura; // missing extension (.xml)
-
-        let actual = {
-          receiptID: receiptID,
-          sdiID: sdiID,
-          invoiceID: invoiceID,
-          invoiceName: invoiceName + ".xml",
-        };
-        temp.push(actual);
-        //console.log(actual);
-      }
-    } catch (err) {
-      //console.log(err);
-      var errorMessage = atp.data.errorMessage;
-      console.log("errorMessage: " + errorMessage);
-    }
-  });
-  //console.log(temp.length);
-  for (let i = 0; i < temp.length; i++) {
-    //console.log(temp[i].id);
-    if (
-      temp[i].receiptID != null &&
-      temp[i].receiptID != undefined &&
-      temp[i].receiptID != ""
-    ) {
-      var url2 =
-        "https://horsa-for.partner.horsafe.net/services/api/v1/cc/attivo/ricevute/" +
-        temp[i].receiptID +
-        "/download";
-      //console.log(url2);
-      const result2 = await axios.get(url2, config).then((atp2) => {
-        try {
-          if (
-            atp2 != undefined &&
-            atp2 != null &&
-            atp2.data != undefined &&
-            atp2.data != null &&
-            atp2.data !== ""
-          ) {
-            let base64Invoice = btoa(atp2.data.replace(/\uFFFD/g, ""));
-            temp[i].RawData =
-              base64Invoice === undefined ||
-              base64Invoice === null ||
-              base64Invoice === ""
-                ? ""
-                : base64Invoice;
-            //console.log(base64Invoice);
-
-            const xml = require("xml-parse");
-            var xmlInvoice = new xml.DOM(
-              xml.parse(atp2.data.replace(/\uFFFD/g, ""))
-            );
-
-            var Hash = xmlInvoice.document.getElementsByTagName("Hash")[0];
-            var DataOraRicezione =
-              xmlInvoice.document.getElementsByTagName("DataOraRicezione")[0];
-            var DataOraConsegna =
-              xmlInvoice.document.getElementsByTagName("DataOraConsegna")[0];
-            var CodiceDestinatario =
-              xmlInvoice.document.getElementsByTagName("Codice")[0];
-            var DescrizioneDestinatario =
-              xmlInvoice.document.getElementsByTagName("Descrizione")[0];
-
-            let SigningTime = "";
-            if (
-              atp2.data.includes("SigningTime>") &&
-              atp2.data.indexOf("SigningTime>") !== -1 &&
-              atp2.data.includes("</xades:SigningTime>") &&
-              atp2.data.indexOf("</xades:SigningTime>") !== -1
-            ) {
-              SigningTime = atp2.data.substring(
-                atp2.data.indexOf("SigningTime>") + "SigningTime>".length,
-                atp2.data.indexOf("</xades:SigningTime>")
-              );
-            }
-
-            temp[i].Hash = Hash === undefined ? "" : Hash.childNodes[0].text;
-            temp[i].DataOraRicezione =
-              DataOraRicezione === undefined
-                ? ""
-                : DataOraRicezione.childNodes[0].text;
-            temp[i].DataOraConsegna =
-              DataOraConsegna === undefined
-                ? ""
-                : DataOraConsegna.childNodes[0].text;
-            temp[i].CodiceDestinatario =
-              CodiceDestinatario === undefined
-                ? ""
-                : CodiceDestinatario.childNodes[0].text;
-            temp[i].DescrizioneDestinatario =
-              DescrizioneDestinatario === undefined
-                ? ""
-                : DescrizioneDestinatario.childNodes[0].text;
-            temp[i].SigningTime = SigningTime;
-          }
-        } catch (err) {
-          var errorMessage2 = atp2.errorMessage;
-          console.log("errorMessage2: " + errorMessage2);
-        }
-      });
-    }
-  }
-  for (let i = 0; i < temp.length; i++) {
-    doc
-      .ele("Receipt")
-      .ele("ReceiptID")
-      .txt(temp[i].receiptID ?? "")
-      .up()
-      .ele("Sdi_ID")
-      .txt(temp[i].sdiID ?? "")
-      .up()
-      .ele("InvoiceID")
-      .txt(temp[i].invoiceID ?? "")
-      .up()
-      .ele("InvoiceName")
-      .txt(temp[i].invoiceName ?? "")
-      .up()
-      .ele("Hash")
-      .txt(temp[i].Hash ?? "")
-      .up()
-      .ele("DataOraRicezione")
-      .txt(temp[i].DataOraRicezione ?? "")
-      .up()
-      .ele("DataOraConsegna")
-      .txt(temp[i].DataOraConsegna ?? "")
-      .up()
-      .ele("CodiceDestinatario")
-      .txt(temp[i].CodiceDestinatario ?? "")
-      .up()
-      .ele("DescrizioneDestinatario")
-      .txt(temp[i].DescrizioneDestinatario ?? "")
-      .up()
-      .ele("SigningTime")
-      .txt(temp[i].SigningTime ?? "")
+          : temp[i].CodiceCommittente.toString()
+              .replace("<![CDATA[", "")
+              .replace("]]>", "")
+      )
       .up()
       .ele("RawData")
       .txt(
@@ -628,13 +654,16 @@ app.post("/getActiveInvoicePDF", async (req, res) => {
     maxRedirects: 21,
   };
 
-  var rawdata = req.body;
-  let dataArea = rawdata.SyncContentDocument.DataArea[0].ContentDocument;
-  let pid = dataArea[0].DocumentID[0].ID[0]._;
   let FileName = "";
   let documentResource = "";
   let FileURL = "";
+  let rawdata = "";
+  let dataArea = "";
+  let pid = "";
   try {
+    rawdata = req.body;
+    dataArea = rawdata.SyncContentDocument.DataArea[0].ContentDocument;
+    pid = dataArea[0].DocumentID[0].ID[0]._;
     documentResource = dataArea[0].DocumentResource[0] ?? "";
     FileName = documentResource.FileName[0] ?? "";
     FileURL = documentResource.URL[0] ?? "";
@@ -655,7 +684,8 @@ app.post("/getActiveInvoicePDF", async (req, res) => {
     try {
       let fattura = atp.data; // invoice xml (type: string)
 
-      let pathXSL = "Stylesheets\\FA_family-1001-PA-vFPR12.xsl"; // path to stylesheet
+      let pathXSL =
+        "D:\\horsa_docLifeProxy\\Stylesheets\\FA_family-1001-PA-vFPR12.xsl"; // path to stylesheet
       const exec = require("child_process").exec;
       let resultString = "";
       const { v4: uuidv4 } = require("uuid");
@@ -672,7 +702,11 @@ app.post("/getActiveInvoicePDF", async (req, res) => {
         );
       })();
       exec(
-        "java XmlTransform " + pathXSL + " invoices\\" + fileName + ".xml",
+        "java XmlTransform " +
+          pathXSL +
+          " D:\\horsa_docLifeProxy\\invoices\\" +
+          fileName +
+          ".xml",
         function callback(error, stdout, stderr) {
           resultString = stdout;
           //console.log(resultString);
@@ -744,12 +778,57 @@ app.post("/getPassiveInvoicePDF", async (req, res) => {
     maxRedirects: 21,
   };
 
-  var rawdata = req.body;
-  let dataArea = rawdata.SyncContentDocument.DataArea[0].ContentDocument;
-  let pid = dataArea[0].DocumentID[0].ID[0]._;
+  let rawdata = "";
+  let dataArea = "";
+  let pid = "";
+
+  try {
+    rawdata = req.body;
+    dataArea = rawdata.SyncContentDocument.DataArea[0].ContentDocument;
+    pid = dataArea[0].DocumentID[0].ID[0]._;
+  } catch (err) {
+    console.log(err);
+  }
   let FileName = "";
   let documentResource = "";
   let FileURL = "";
+
+  let idFatturaSIME = "";
+  let dataRicezione = "";
+  let j = 0;
+  while (dataArea[0].DocumentMetaData[0].Attribute[j] !== undefined) {
+    if (
+      dataArea[0].DocumentMetaData[0].Attribute[j].$["id"] === "ID_FatturaSIME"
+    ) {
+      idFatturaSIME = dataArea[0].DocumentMetaData[0].Attribute[
+        j
+      ].AttributeValue[0]
+        .toString()
+        .trim();
+    }
+
+    if (
+      dataArea[0].DocumentMetaData[0].Attribute[j].$["id"] ===
+      "DataRicezioneFattura"
+    ) {
+      dataRicezione = dataArea[0].DocumentMetaData[0].Attribute[
+        j
+      ].AttributeValue[0]
+        .toString()
+        .trim();
+    }
+    j++;
+  }
+  if (dataRicezione !== "") {
+    dataRicezione = dataRicezione.replaceAll("-", "");
+    if (dataRicezione.indexOf("T") > -1) {
+      dataRicezione =
+        dataRicezione.substring(0, dataRicezione.indexOf("T")) +
+        "  " +
+        dataRicezione.substring(dataRicezione.indexOf("T"));
+    }
+  }
+
   try {
     documentResource = dataArea[0].DocumentResource[0] ?? "";
     FileName = documentResource.FileName[0] ?? "";
@@ -769,9 +848,17 @@ app.post("/getPassiveInvoicePDF", async (req, res) => {
 
   axios.get(FileURL, config).then((atp) => {
     try {
-      let fattura = atp.data; // invoice xml (type: string)
+      let fattura = atp.data.replace(
+        "</DatiTrasmissione>",
+        "<IdSime>" +
+          idFatturaSIME +
+          "</IdSime><DataRicezione>" +
+          dataRicezione +
+          "</DataRicezione></DatiTrasmissione>"
+      ); // invoice xml (type: string)
 
-      let pathXSL = "Stylesheets\\FP_family-1005-PA-vFPR12.xsl"; // path to stylesheet
+      let pathXSL =
+        "D:\\horsa_docLifeProxy\\Stylesheets\\FP_family-1005-PA-vFPR12.xsl"; // path to stylesheet
       const exec = require("child_process").exec;
       let resultString = "";
       const { v4: uuidv4 } = require("uuid");
@@ -782,17 +869,22 @@ app.post("/getPassiveInvoicePDF", async (req, res) => {
           "invoices/" + fileName + ".xml",
           fattura,
           (err) => {
-            if (err) throw err;
+            if (err) return res.send(doc.toString({ pretty: true }));
           }
         );
       })();
 
       exec(
-        "java XmlTransform " + pathXSL + " invoices\\" + fileName + ".xml",
+        "java XmlTransform " +
+          pathXSL +
+          " D:\\horsa_docLifeProxy\\invoices\\" +
+          fileName +
+          ".xml",
         function callback(error, stdout, stderr) {
           resultString = stdout;
           var pdf = require("html-pdf");
           var html = resultString;
+          console.log(html);
           var options = {
             format: "A4",
             orientation: "portrait",
@@ -860,13 +952,16 @@ app.post("/getPassiveInvoiceAttachment", async (req, res) => {
     maxRedirects: 21,
   };
 
-  var rawdata = req.body;
-  let dataArea = rawdata.SyncContentDocument.DataArea[0].ContentDocument;
-  let pid = dataArea[0].DocumentID[0].ID[0]._;
   let FileName = "";
   let documentResource = "";
   let FileURL = "";
+  let rawdata = "";
+  let dataArea = "";
+  let pid = "";
   try {
+    rawdata = req.body;
+    dataArea = rawdata.SyncContentDocument.DataArea[0].ContentDocument;
+    pid = dataArea[0].DocumentID[0].ID[0]._;
     documentResource = dataArea[0].DocumentResource[0] ?? "";
     FileName = documentResource.FileName[0] ?? "";
     FileURL = documentResource.URL[0] ?? "";
@@ -920,6 +1015,17 @@ app.post("/getPassiveInvoiceAttachment", async (req, res) => {
         let nomeAttachment =
           xmlInvoice.document.getElementsByTagName("NomeAttachment")[i]
             .childNodes[0].text ?? "";
+
+        nomeAttachment = nomeAttachment
+          .replaceAll("<![CDATA[", "")
+          .replaceAll("]]>", "");
+        if (
+          !nomeAttachment.includes(".pdf") &&
+          !nomeAttachment.includes(".PDF")
+        ) {
+          nomeAttachment = nomeAttachment + ".pdf";
+        }
+
         let rawDataAttachment =
           xmlInvoice.document.getElementsByTagName("Attachment")[i]
             .childNodes[0].text ?? "";
@@ -929,7 +1035,9 @@ app.post("/getPassiveInvoiceAttachment", async (req, res) => {
           .txt(nomeAttachment)
           .up()
           .ele("RawData")
-          .txt(rawDataAttachment.trim())
+          .txt(
+            rawDataAttachment.trim().replaceAll(" ", "").replaceAll("\n", "")
+          )
           .up();
 
         i++;
@@ -956,13 +1064,19 @@ app.post("/getActiveInvoiceReceiptPDF", async (req, res) => {
     maxRedirects: 21,
   };
 
-  var rawdata = req.body;
-  let dataArea = rawdata.SyncContentDocument.DataArea[0].ContentDocument;
-  let pid = dataArea[0].DocumentID[0].ID[0]._;
+  let rawdata = "";
+  let dataArea = "";
+  let pid = "";
   let FileName = "";
   let documentResource = "";
   let FileURL = "";
   try {
+    rawdata = req.body;
+    dataArea = rawdata.SyncContentDocument.DataArea[0].ContentDocument;
+    pid = dataArea[0].DocumentID[0].ID[0]._;
+    FileName = "";
+    documentResource = "";
+    FileURL = "";
     documentResource = dataArea[0].DocumentResource[0] ?? "";
     FileName = documentResource.FileName[0] ?? "";
     FileURL = documentResource.URL[0] ?? "";
@@ -1058,6 +1172,282 @@ app.post("/getActiveInvoiceReceiptPDF", async (req, res) => {
       return res.send(doc.toString({ pretty: true }));
     }
   });
+});
+
+// D. Bettero - call api/v1/cc/attivo/ricevute/listUnacknowledged and for each receipt call api/v1/cc/attivo/ricevute/{id}/download.
+// Return an xml containing the base64 of receipts and their attributes (if valued)
+app.get("/retrieveReceiptsActiveInvoices", async (req, res) => {
+  var basicAuth = req.header("authorization");
+  const config = {
+    headers: {
+      Authorization: basicAuth,
+    },
+    maxRedirects: 21,
+  };
+
+  var url =
+    "https://console-fe.horsa.it/services/api/v1/cc/attivo/ricevute/listUnacknowledged";
+  let temp = [];
+  var builder = require("xmlbuilder");
+  var doc = builder.create("ActiveReceipts");
+  const result = await axios.get(url, config).then((atp) => {
+    try {
+      console.log(atp.data.result.length);
+
+      for (let i = 0; i < atp.data.result.length; i++) {
+        let receiptID = atp.data.result[i].id;
+        let sdiID = atp.data.result[i].sdiId;
+        let invoiceID = atp.data.result[i].idFattura;
+        let invoiceName = atp.data.result[i].nomeFattura; // missing extension (.xml)
+
+        let status = atp.data.result[i].tipoMessaggio;
+        let esito = atp.data.result[i].dettaglio.esito;
+        if (status === undefined || status === null) {
+          status = "SCONOSCIUTO";
+        } else {
+          status = status.trim();
+          switch (status) {
+            case "AT":
+              status = "NON RECAPITATA";
+              break;
+            case "RC":
+              status = "CONSEGNATA";
+              break;
+            case "NS":
+              status = "SCARTATA";
+              break;
+            case "MC":
+              status = "MANCATA CONSEGNA";
+              break;
+            case "DT":
+              status = "DECORRENZA TERMINI";
+              break;
+            case "NE":
+              if (esito) {
+                status = "ACCETTATA";
+              } else {
+                status = "RIFIUTATA";
+              }
+              break;
+            default:
+              status = "SCONOSCIUTO";
+              break;
+          }
+        }
+
+        let actual = {
+          receiptID: receiptID,
+          sdiID: sdiID,
+          invoiceID: invoiceID,
+          invoiceName: invoiceName + ".xml",
+          status: status,
+        };
+        temp.push(actual);
+        //console.log(actual);
+      }
+    } catch (err) {
+      //console.log(err);
+      var errorMessage = atp.data.errorMessage;
+      console.log("errorMessage: " + errorMessage);
+    }
+  });
+  //console.log(temp.length);
+  for (let i = 0; i < temp.length; i++) {
+    //console.log(temp[i].id);
+    if (
+      temp[i].receiptID != null &&
+      temp[i].receiptID != undefined &&
+      temp[i].receiptID != ""
+    ) {
+      var url2 =
+        "https://console-fe.horsa.it/services/api/v1/cc/attivo/ricevute/" +
+        temp[i].receiptID +
+        "/download";
+      //console.log(url2);
+      const result2 = await axios.get(url2, config).then((atp2) => {
+        try {
+          if (
+            atp2 != undefined &&
+            atp2 != null &&
+            atp2.data != undefined &&
+            atp2.data != null &&
+            atp2.data !== ""
+          ) {
+            let base64Invoice = btoa(atp2.data.replace(/\uFFFD/g, ""));
+            temp[i].RawData =
+              base64Invoice === undefined ||
+              base64Invoice === null ||
+              base64Invoice === ""
+                ? ""
+                : base64Invoice;
+            //console.log(base64Invoice);
+
+            const xml = require("xml-parse");
+            var xmlInvoice = new xml.DOM(
+              xml.parse(atp2.data.replace(/\uFFFD/g, ""))
+            );
+
+            var Hash = xmlInvoice.document.getElementsByTagName("Hash")[0];
+            var DataOraRicezione =
+              xmlInvoice.document.getElementsByTagName("DataOraRicezione")[0];
+            var DataOraConsegna =
+              xmlInvoice.document.getElementsByTagName("DataOraConsegna")[0];
+            var CodiceDestinatario =
+              xmlInvoice.document.getElementsByTagName("Codice")[0];
+            var DescrizioneDestinatario =
+              xmlInvoice.document.getElementsByTagName("Descrizione")[0];
+
+            let SigningTime = "";
+            if (
+              atp2.data.includes("SigningTime>") &&
+              atp2.data.indexOf("SigningTime>") !== -1 &&
+              atp2.data.includes("</xades:SigningTime>") &&
+              atp2.data.indexOf("</xades:SigningTime>") !== -1
+            ) {
+              SigningTime = atp2.data.substring(
+                atp2.data.indexOf("SigningTime>") + "SigningTime>".length,
+                atp2.data.indexOf("</xades:SigningTime>")
+              );
+            }
+
+            temp[i].Hash = Hash === undefined ? "" : Hash.childNodes[0].text;
+            temp[i].DataOraRicezione =
+              DataOraRicezione === undefined
+                ? ""
+                : DataOraRicezione.childNodes[0].text;
+            temp[i].DataOraConsegna =
+              DataOraConsegna === undefined
+                ? ""
+                : DataOraConsegna.childNodes[0].text;
+            temp[i].CodiceDestinatario =
+              CodiceDestinatario === undefined
+                ? ""
+                : CodiceDestinatario.childNodes[0].text;
+            temp[i].DescrizioneDestinatario =
+              DescrizioneDestinatario === undefined
+                ? ""
+                : DescrizioneDestinatario.childNodes[0].text;
+            temp[i].SigningTime = SigningTime;
+          }
+        } catch (err) {
+          var errorMessage2 = atp2.errorMessage;
+          console.log("errorMessage2: " + errorMessage2);
+        }
+      });
+    }
+  }
+  for (let i = 0; i < temp.length; i++) {
+    doc
+      .ele("Receipt")
+      .ele("ReceiptID")
+      .txt(
+        temp[i].receiptID === undefined
+          ? ""
+          : temp[i].receiptID
+              .toString()
+              .replace("<![CDATA[", "")
+              .replace("]]>", "")
+      )
+      .up()
+      .ele("Sdi_ID")
+      .txt(
+        temp[i].sdiID === undefined
+          ? ""
+          : temp[i].sdiID.toString().replace("<![CDATA[", "").replace("]]>", "")
+      )
+      .up()
+      .ele("InvoiceID")
+      .txt(
+        temp[i].invoiceID === undefined
+          ? ""
+          : temp[i].invoiceID
+              .toString()
+              .replace("<![CDATA[", "")
+              .replace("]]>", "")
+      )
+      .up()
+      .ele("InvoiceName")
+      .txt(
+        temp[i].invoiceName === undefined
+          ? ""
+          : temp[i].invoiceName
+              .toString()
+              .replace("<![CDATA[", "")
+              .replace("]]>", "")
+      )
+      .up()
+      .ele("Status")
+      .txt(
+        temp[i].status === undefined
+          ? ""
+          : temp[i].status
+              .toString()
+              .replace("<![CDATA[", "")
+              .replace("]]>", "")
+      )
+      .up()
+      .ele("Hash")
+      .txt(
+        temp[i].Hash === undefined
+          ? ""
+          : temp[i].Hash.toString().replace("<![CDATA[", "").replace("]]>", "")
+      )
+      .up()
+      .ele("DataOraRicezione")
+      .txt(
+        temp[i].DataOraRicezione === undefined
+          ? ""
+          : temp[i].DataOraRicezione.toString()
+              .replace("<![CDATA[", "")
+              .replace("]]>", "")
+      )
+      .up()
+      .ele("DataOraConsegna")
+      .txt(
+        temp[i].DataOraConsegna === undefined
+          ? ""
+          : temp[i].DataOraConsegna.toString()
+              .replace("<![CDATA[", "")
+              .replace("]]>", "")
+      )
+      .up()
+      .ele("CodiceDestinatario")
+      .txt(
+        temp[i].CodiceDestinatario === undefined
+          ? ""
+          : temp[i].CodiceDestinatario.toString()
+              .replace("<![CDATA[", "")
+              .replace("]]>", "")
+      )
+      .up()
+      .ele("DescrizioneDestinatario")
+      .txt(
+        temp[i].DescrizioneDestinatario === undefined
+          ? ""
+          : temp[i].DescrizioneDestinatario.toString()
+              .replace("<![CDATA[", "")
+              .replace("]]>", "")
+      )
+      .up()
+      .ele("SigningTime")
+      .txt(
+        temp[i].SigningTime === undefined
+          ? ""
+          : temp[i].SigningTime.toString()
+              .replace("<![CDATA[", "")
+              .replace("]]>", "")
+      )
+      .up()
+      .ele("RawData")
+      .txt(
+        temp[i].RawData === undefined ||
+          temp[i].RawData === null ||
+          temp[i].RawData === ""
+          ? ""
+          : temp[i].RawData
+      );
+  }
+  return res.send(doc.toString({ pretty: true }));
 });
 
 //var httpsServer = https.createServer(options, app);
