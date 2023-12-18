@@ -6,7 +6,7 @@
   },
   "schemes": ["https"],
   "produces": ["application/json"],
-  "basePath": "/infor/CustomerApi/horsagw_dl/horsagwdl",
+  "basePath": "/infor/CustomerApi/horsagw_dl_Fonderie_SIME_SpA/horsagwdl",
   "host": "ios.corp.sime.it:7443",
   "swagger": "2.0",
   "definitions": {
@@ -178,6 +178,40 @@
       "post": {
         "tags": ["Api Clienti Consultatori (Ciclo Attivo)"],
         "summary": "Converts xml of receipt to pdf using a stylesheet",
+        "consumes": ["application/xml"],
+        "produces": ["application/xml"],
+        "responses": {
+          "200": {
+            "description": "On success",
+            "schema": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "On error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "body",
+            "name": "SyncContentDocument",
+            "description": "The user to create.",
+            "schema": {
+              "type": "object"
+            },
+            "required": true
+          }
+        ]
+      }
+    },
+    "/getActiveInvoiceDatas": {
+      "post": {
+        "tags": ["Api Clienti Consultatori (Ciclo Attivo)"],
+        "summary": "Get datas from active invoice's xml",
         "consumes": ["application/xml"],
         "produces": ["application/xml"],
         "responses": {

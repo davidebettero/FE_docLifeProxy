@@ -244,7 +244,7 @@ app.post("/postToDocLife", (req, res) => {
     .catch(function (error) {});
 });
 
-// D. Bettero - call api/v1/cc/passivo/listUnacknowledged and for each invoice call api/v1/cc/passivo/{id}/download.
+// Call api/v1/cc/passivo/listUnacknowledged and for each invoice call api/v1/cc/passivo/{id}/download.
 // Return an xml containing the base64 of invoices and their attributes (if valued)
 app.get("/retrievePassiveInvoices", async (req, res) => {
   var basicAuth = req.header("authorization");
@@ -296,6 +296,7 @@ app.get("/retrievePassiveInvoices", async (req, res) => {
       //console.log(err);
       var errorMessage = atp.data.errorMessage;
       console.log("errorMessage: " + errorMessage);
+      return res.send(doc.toString({ pretty: true }));
     }
   });
   //console.log(temp.length);
@@ -466,6 +467,7 @@ app.get("/retrievePassiveInvoices", async (req, res) => {
         } catch (err) {
           var errorMessage2 = atp2.errorMessage;
           console.log("errorMessage2: " + errorMessage2);
+          return res.send(doc.toString({ pretty: true }));
         }
       });
     }
@@ -642,7 +644,7 @@ app.get("/retrievePassiveInvoices", async (req, res) => {
   return res.send(doc.toString({ pretty: true }));
 });
 
-// D. Bettero - transforms with a stylesheet the xml of the active invoice into its pdf.
+// Transforms with a stylesheet the xml of the active invoice into its pdf.
 // Return an xml containing the base64 of the pdf invoice and its attributes (if valued)
 // Input: Sync.ContentDocument of active invoice's class
 app.post("/getActiveInvoicePDF", async (req, res) => {
@@ -673,16 +675,71 @@ app.post("/getActiveInvoicePDF", async (req, res) => {
     console.log(err);
     FileName = "ERROR";
   }
-  if (FileName == "ERROR") return;
-
-  FileURL = FileURL.replace("&amp;", "&").trim();
 
   const builder = require("xmlbuilder");
   var doc = builder.create("ActiveInvoicePDF");
+  if (FileName == "ERROR") return res.send(doc.toString({ pretty: true }));
 
+  FileURL = FileURL.replace("&amp;", "&").trim();
+  let getXMLError = false; //DG - 231212
   axios.get(FileURL, config).then((atp) => {
     try {
-      let fattura = atp.data; // invoice xml (type: string)
+      let fattura = atp.data.replaceAll('"', "'"); // invoice xml (type: string)
+
+      if (
+        fattura.includes("LoginErrors()") ||
+        (!fattura.includes("<") && !fattura.includes("</"))
+      ) {
+        return res.send(doc.toString({ pretty: true }));
+      }
+
+      // 2023-12-15 - D. Bettero - rimozione eventuale tag <?xml-stylesheet>
+      if (
+        fattura !== undefined &&
+        fattura !== null &&
+        typeof fattura === "string"
+      ) {
+        if (fattura.includes("<?xml-stylesheet")) {
+          let start = fattura.indexOf("<?xml-stylesheet");
+          let end = fattura.indexOf("?>", start);
+          fattura = fattura.substring(0, start) + fattura.substring(end + 2);
+        }
+      }
+
+      // 2023-12-15 - D. Bettero - aggiunta namespace tag root
+      if (
+        fattura !== undefined &&
+        fattura !== null &&
+        typeof fattura === "string"
+      ) {
+        if (
+          fattura.includes("<FatturaElettronica ") &&
+          fattura.includes("</FatturaElettronica>") &&
+          (fattura.includes(
+            "xmlns='http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture"
+          ) ||
+            fattura.includes(
+              'xmlns="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture'
+            ))
+        ) {
+          fattura = fattura.replaceAll(
+            "<FatturaElettronica ",
+            "<p:FatturaElettronica "
+          );
+          fattura = fattura.replaceAll(
+            "</FatturaElettronica>",
+            "</p:FatturaElettronica>"
+          );
+          fattura = fattura.replaceAll(
+            "xmlns='http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture",
+            "xmlns:p='http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture"
+          );
+          fattura = fattura.replaceAll(
+            'xmlns="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture',
+            'xmlns:p="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture'
+          );
+        }
+      }
 
       let pathXSL =
         "D:\\horsa_docLifeProxy\\Stylesheets\\FA_family-1001-PA-vFPR12.xsl"; // path to stylesheet
@@ -696,11 +753,19 @@ app.post("/getActiveInvoicePDF", async (req, res) => {
           "invoices/" + fileName + ".xml",
           fattura,
           (err) => {
+            getXMLError = true;
             if (err) throw err;
             console.log(err);
           }
         );
       })();
+
+      if (getXMLError) {
+        var errorMessage = atp.errorMessage;
+        console.log("errorMessage: " + errorMessage);
+        return res.send(doc.toString({ pretty: true }));
+      }
+
       exec(
         "java XmlTransform " +
           pathXSL +
@@ -726,39 +791,55 @@ app.post("/getActiveInvoicePDF", async (req, res) => {
             },
           };
           //console.log(html);
-          pdf.create(html, options).toBuffer(function (err, buffer) {
-            if (err) return console.log(err);
-            let rawData = buffer.toString("base64");
+          try {
+            pdf.create(html, options).toBuffer(function (err, buffer) {
+              if (err) return console.log(err);
+              let rawData = buffer.toString("base64");
 
-            let i = 0;
-            let attrs = {};
+              let i = 0;
+              let attrs = {};
 
-            while (dataArea[0].DocumentMetaData[0].Attribute[i] !== undefined) {
-              attrs[dataArea[0].DocumentMetaData[0].Attribute[i].$["id"]] =
-                dataArea[0].DocumentMetaData[0].Attribute[i].AttributeValue ===
-                undefined
-                  ? ""
-                  : dataArea[0].DocumentMetaData[0].Attribute[
-                      i
-                    ].AttributeValue[0]
-                      .toString()
-                      .trim();
-              i++;
-            }
-            for (var [key, value] of Object.entries(attrs)) {
-              if (key === "FileName") {
-                value = value.replace(".xml", ".pdf");
+              while (
+                dataArea[0].DocumentMetaData[0].Attribute[i] !== undefined
+              ) {
+                attrs[dataArea[0].DocumentMetaData[0].Attribute[i].$["id"]] =
+                  dataArea[0].DocumentMetaData[0].Attribute[i]
+                    .AttributeValue === undefined
+                    ? ""
+                    : dataArea[0].DocumentMetaData[0].Attribute[
+                        i
+                      ].AttributeValue[0]
+                        .toString()
+                        .trim();
+                i++;
               }
-              doc.ele(key).txt(value).up();
-            }
-            doc.ele("RawData").txt(rawData);
+              let nomeFatturaAttiva = "";
+              for (var [key, value] of Object.entries(attrs)) {
+                if (key === "FileName") {
+                  value = value.replace(".xml", ".pdf");
+                  nomeFatturaAttiva = value;
+                }
+                doc.ele(key).txt(value).up();
+              }
+              doc.ele("RawData").txt(rawData);
 
+              WriteLogSync(
+                "D:\\horsa_docLifeProxy\\log\\FattureAttive.txt",
+                "Generato PDF fattura nome = " + nomeFatturaAttiva
+              );
+
+              return res.send(doc.toString({ pretty: true }));
+            });
+          } catch (err) {
+            //console.log(err);
+            var errorMessage = "Token scaduto";
+            console.log("errorMessage: " + errorMessage);
             return res.send(doc.toString({ pretty: true }));
-          });
+          }
         }
       );
     } catch (err) {
-      console.log(err);
+      //console.log(err);
       var errorMessage = atp.errorMessage;
       console.log("errorMessage: " + errorMessage);
       return res.send(doc.toString({ pretty: true }));
@@ -766,7 +847,7 @@ app.post("/getActiveInvoicePDF", async (req, res) => {
   });
 });
 
-// D. Bettero - transforms with a stylesheet the xml of the passive invoice into its pdf.
+// Transforms with a stylesheet the xml of the passive invoice into its pdf.
 // Return an xml containing the base64 of the pdf invoice and its attributes (if valued)
 // Input: Sync.ContentDocument of passive invoice's class
 app.post("/getPassiveInvoicePDF", async (req, res) => {
@@ -778,6 +859,9 @@ app.post("/getPassiveInvoicePDF", async (req, res) => {
     maxRedirects: 21,
   };
 
+  const builder = require("xmlbuilder");
+  var doc = builder.create("PassiveInvoicePDF");
+
   let rawdata = "";
   let dataArea = "";
   let pid = "";
@@ -788,6 +872,7 @@ app.post("/getPassiveInvoicePDF", async (req, res) => {
     pid = dataArea[0].DocumentID[0].ID[0]._;
   } catch (err) {
     console.log(err);
+    return res.send(doc.toString({ pretty: true }));
   }
   let FileName = "";
   let documentResource = "";
@@ -798,7 +883,9 @@ app.post("/getPassiveInvoicePDF", async (req, res) => {
   let j = 0;
   while (dataArea[0].DocumentMetaData[0].Attribute[j] !== undefined) {
     if (
-      dataArea[0].DocumentMetaData[0].Attribute[j].$["id"] === "ID_FatturaSIME"
+      dataArea[0].DocumentMetaData[0].Attribute[j].$["id"] ===
+        "ID_FatturaSIME" &&
+      dataArea[0].DocumentMetaData[0].Attribute[j].AttributeValue !== undefined
     ) {
       idFatturaSIME = dataArea[0].DocumentMetaData[0].Attribute[
         j
@@ -838,24 +925,79 @@ app.post("/getPassiveInvoicePDF", async (req, res) => {
     //console.log(dataArea);
     console.log(err);
     FileName = "ERROR";
+    return res.send(doc.toString({ pretty: true }));
   }
-  if (FileName == "ERROR") return;
+  if (FileName == "ERROR") return res.send(doc.toString({ pretty: true }));
 
   FileURL = FileURL.replace("&amp;", "&").trim();
-
-  const builder = require("xmlbuilder");
-  var doc = builder.create("PassiveInvoicePDF");
-
+  let getXMLError = false;
   axios.get(FileURL, config).then((atp) => {
     try {
-      let fattura = atp.data.replace(
-        "</DatiTrasmissione>",
-        "<IdSime>" +
-          idFatturaSIME +
-          "</IdSime><DataRicezione>" +
-          dataRicezione +
-          "</DataRicezione></DatiTrasmissione>"
-      ); // invoice xml (type: string)
+      let fattura = atp.data
+        .replace(
+          "</DatiTrasmissione>",
+          "<IdSime>" +
+            idFatturaSIME +
+            "</IdSime><DataRicezione>" +
+            dataRicezione +
+            "</DataRicezione></DatiTrasmissione>"
+        )
+        .replaceAll('"', "'"); // invoice xml (type: string)
+
+      if (
+        fattura.includes("LoginErrors()") ||
+        (!fattura.includes("<") && !fattura.includes("</"))
+      ) {
+        return res.send(doc.toString({ pretty: true }));
+      }
+
+      // 2023-12-15 - D. Bettero - rimozione eventuale tag <?xml-stylesheet>
+      if (
+        fattura !== undefined &&
+        fattura !== null &&
+        typeof fattura === "string"
+      ) {
+        if (fattura.includes("<?xml-stylesheet")) {
+          let start = fattura.indexOf("<?xml-stylesheet");
+          let end = fattura.indexOf("?>", start);
+          fattura = fattura.substring(0, start) + fattura.substring(end + 2);
+        }
+      }
+
+      // 2023-12-15 - D. Bettero - aggiunta namespace tag root
+      if (
+        fattura !== undefined &&
+        fattura !== null &&
+        typeof fattura === "string"
+      ) {
+        if (
+          fattura.includes("<FatturaElettronica ") &&
+          fattura.includes("</FatturaElettronica>") &&
+          (fattura.includes(
+            "xmlns='http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture"
+          ) ||
+            fattura.includes(
+              'xmlns="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture'
+            ))
+        ) {
+          fattura = fattura.replaceAll(
+            "<FatturaElettronica ",
+            "<p:FatturaElettronica "
+          );
+          fattura = fattura.replaceAll(
+            "</FatturaElettronica>",
+            "</p:FatturaElettronica>"
+          );
+          fattura = fattura.replaceAll(
+            "xmlns='http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture",
+            "xmlns:p='http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture"
+          );
+          fattura = fattura.replaceAll(
+            'xmlns="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture',
+            'xmlns:p="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture'
+          );
+        }
+      }
 
       let pathXSL =
         "D:\\horsa_docLifeProxy\\Stylesheets\\FP_family-1005-PA-vFPR12.xsl"; // path to stylesheet
@@ -864,74 +1006,100 @@ app.post("/getPassiveInvoicePDF", async (req, res) => {
       const { v4: uuidv4 } = require("uuid");
       let fileName = uuidv4();
       const fs = require("fs");
-      (async () => {
-        await fs.writeFileSync(
-          "invoices/" + fileName + ".xml",
-          fattura,
-          (err) => {
-            if (err) return res.send(doc.toString({ pretty: true }));
+
+      fs.writeFileSync("invoices/" + fileName + ".xml", fattura, (err) => {
+        getXMLError = true;
+        if (err) return res.send(doc.toString({ pretty: true }));
+      });
+
+      if (getXMLError) {
+        var errorMessage = atp.errorMessage;
+        console.log("error message: " + errorMessage);
+        return res.send(doc.toString({ pretty: true }));
+      }
+
+      if (fs.existsSync("invoices/" + fileName + ".xml")) {
+        exec(
+          "java XmlTransform " +
+            pathXSL +
+            " D:\\horsa_docLifeProxy\\invoices\\" +
+            fileName +
+            ".xml",
+          function callback(error, stdout, stderr) {
+            resultString = stdout;
+            var pdf = require("html-pdf");
+            var html = resultString;
+            console.log(html);
+            var options = {
+              format: "A4",
+              orientation: "portrait",
+              paginationOffset: 1,
+              header: {
+                height: "10mm",
+                contents:
+                  '<div style="text-align: center;">' +
+                  "Id. SIME " +
+                  idFatturaSIME +
+                  "</div>",
+              },
+              footer: {
+                height: "10mm",
+                contents: {
+                  default:
+                    '<div style="text-align: center;"><span style="color: #444;">{{page}}</span>/<span>{{pages}}</span></div>',
+                },
+              },
+            };
+            try {
+              pdf.create(html, options).toBuffer(function (err, buffer) {
+                if (err) return res.send(doc.toString({ pretty: true }));
+                let rawData = buffer.toString("base64");
+
+                let i = 0;
+                let attrs = {};
+
+                while (
+                  dataArea[0].DocumentMetaData[0].Attribute[i] !== undefined
+                ) {
+                  attrs[dataArea[0].DocumentMetaData[0].Attribute[i].$["id"]] =
+                    dataArea[0].DocumentMetaData[0].Attribute[i]
+                      .AttributeValue === undefined
+                      ? ""
+                      : dataArea[0].DocumentMetaData[0].Attribute[
+                          i
+                        ].AttributeValue[0]
+                          .toString()
+                          .trim();
+                  i++;
+                }
+                for (var [key, value] of Object.entries(attrs)) {
+                  if (key === "FileName") {
+                    value = value.replace(".xml", ".pdf");
+                    if (!value.includes(".pdf")) {
+                      value = value + ".pdf";
+                    }
+                  }
+                  doc.ele(key).txt(value).up();
+                }
+                doc.ele("RawData").txt(rawData);
+
+                WriteLogSync(
+                  "D:\\horsa_docLifeProxy\\log\\FatturePassive.txt",
+                  "Generato PDF fattura idFatturaSIME = " + idFatturaSIME
+                );
+
+                return res.send(doc.toString({ pretty: true }));
+              });
+            } catch (err) {
+              var errorMessage = "Token Scaduto";
+              console.log("error message: " + errorMessage);
+              return res.send(doc.toString({ pretty: true }));
+            }
           }
         );
-      })();
-
-      exec(
-        "java XmlTransform " +
-          pathXSL +
-          " D:\\horsa_docLifeProxy\\invoices\\" +
-          fileName +
-          ".xml",
-        function callback(error, stdout, stderr) {
-          resultString = stdout;
-          var pdf = require("html-pdf");
-          var html = resultString;
-          console.log(html);
-          var options = {
-            format: "A4",
-            orientation: "portrait",
-            footer: {
-              height: "1mm",
-              contents: {
-                first: "",
-                2: "",
-                default: "",
-                last: "",
-              },
-            },
-          };
-          pdf.create(html, options).toBuffer(function (err, buffer) {
-            if (err) return console.log(err);
-            let rawData = buffer.toString("base64");
-
-            let i = 0;
-            let attrs = {};
-
-            while (dataArea[0].DocumentMetaData[0].Attribute[i] !== undefined) {
-              attrs[dataArea[0].DocumentMetaData[0].Attribute[i].$["id"]] =
-                dataArea[0].DocumentMetaData[0].Attribute[i].AttributeValue ===
-                undefined
-                  ? ""
-                  : dataArea[0].DocumentMetaData[0].Attribute[
-                      i
-                    ].AttributeValue[0]
-                      .toString()
-                      .trim();
-              i++;
-            }
-            for (var [key, value] of Object.entries(attrs)) {
-              if (key === "FileName") {
-                value = value.replace(".xml", ".pdf");
-                if (!value.includes(".pdf")) {
-                  value = value + ".pdf";
-                }
-              }
-              doc.ele(key).txt(value).up();
-            }
-            doc.ele("RawData").txt(rawData);
-
-            return res.send(doc.toString({ pretty: true }));
-          });
-        }
-      );
+      } else {
+        return res.send(doc.toString({ pretty: true }));
+      }
     } catch (err) {
       var errorMessage = atp.errorMessage;
       console.log("errorMessage: " + errorMessage);
@@ -940,7 +1108,7 @@ app.post("/getPassiveInvoicePDF", async (req, res) => {
   });
 });
 
-// D. Bettero - get the attachments of the passive invoice, if present.
+// Get the attachments of the passive invoice, if present.
 // Return an xml containing the base64 of the attachments of the pdf invoice and their attributes (if valued).
 // Input: Sync.ContentDocument of passive invoice's class
 app.post("/getPassiveInvoiceAttachment", async (req, res) => {
@@ -951,6 +1119,9 @@ app.post("/getPassiveInvoiceAttachment", async (req, res) => {
     },
     maxRedirects: 21,
   };
+
+  const builder = require("xmlbuilder");
+  var doc = builder.create("PassiveInvoiceAttachment");
 
   let FileName = "";
   let documentResource = "";
@@ -970,17 +1141,21 @@ app.post("/getPassiveInvoiceAttachment", async (req, res) => {
     //console.log(dataArea);
     console.log(err);
     FileName = "ERROR";
+    return res.send(doc.toString({ pretty: true }));
   }
-  if (FileName == "ERROR") return;
+  if (FileName == "ERROR") return res.send(doc.toString({ pretty: true }));
 
   FileURL = FileURL.replace("&amp;", "&").trim();
-
-  const builder = require("xmlbuilder");
-  var doc = builder.create("PassiveInvoiceAttachment");
 
   axios.get(FileURL, config).then((atp) => {
     try {
       let fattura = atp.data; // invoice xml (type: string)
+      if (
+        fattura.includes("LoginErrors()") ||
+        (!fattura.includes("<") && !fattura.includes("</"))
+      ) {
+        return res.send(doc.toString({ pretty: true }));
+      }
 
       let i = 0;
       let attrs = {};
@@ -995,15 +1170,32 @@ app.post("/getPassiveInvoiceAttachment", async (req, res) => {
                 .trim();
         i++;
       }
+      let nomeAllegatoFatturaPassiva = "";
       for (var [key, value] of Object.entries(attrs)) {
         if (key === "FileName") {
           value = value.replace(".xml", ".pdf");
+          nomeAllegatoFatturaPassiva = value;
         }
         doc.ele(key).txt(value).up();
       }
 
+      // 2023-12-15 - D. Bettero - rimozione eventuale tag <?xml-stylesheet>
+      if (
+        fattura !== undefined &&
+        fattura !== null &&
+        typeof fattura === "string"
+      ) {
+        if (fattura.includes("<?xml-stylesheet")) {
+          let start = fattura.indexOf("<?xml-stylesheet");
+          let end = fattura.indexOf("?>", start);
+          fattura = fattura.substring(0, start) + fattura.substring(end + 2);
+        }
+      }
+
       const xml = require("xml-parse");
-      var xmlInvoice = new xml.DOM(xml.parse(fattura.replace(/\uFFFD/g, "")));
+      var xmlInvoice = new xml.DOM(
+        xml.parse(fattura.replace(/\uFFFD/g, "").replaceAll('"', "'"))
+      );
 
       i = 0;
       let attchs = doc.ele("Attachments");
@@ -1021,7 +1213,15 @@ app.post("/getPassiveInvoiceAttachment", async (req, res) => {
           .replaceAll("]]>", "");
         if (
           !nomeAttachment.includes(".pdf") &&
-          !nomeAttachment.includes(".PDF")
+          !nomeAttachment.includes(".PDF") &&
+          !nomeAttachment.includes(".xml") &&
+          !nomeAttachment.includes(".XML") &&
+          !nomeAttachment.includes(".xls") &&
+          !nomeAttachment.includes(".XLS") &&
+          !nomeAttachment.includes(".txt") &&
+          !nomeAttachment.includes(".TXT") &&
+          !nomeAttachment.includes(".md") &&
+          !nomeAttachment.includes(".MD")
         ) {
           nomeAttachment = nomeAttachment + ".pdf";
         }
@@ -1043,6 +1243,12 @@ app.post("/getPassiveInvoiceAttachment", async (req, res) => {
         i++;
       }
 
+      WriteLogSync(
+        "D:\\horsa_docLifeProxy\\log\\AllegatiFatturePassive.txt",
+        "Generato PDF allegato/i fattura passiva nome = " +
+          nomeAllegatoFatturaPassiva
+      );
+
       return res.send(doc.toString({ pretty: true }));
     } catch (err) {
       var errorMessage = atp.errorMessage;
@@ -1052,7 +1258,7 @@ app.post("/getPassiveInvoiceAttachment", async (req, res) => {
   });
 });
 
-// D. Bettero - transforms with a stylesheet the xml of the active invoice receipt into its pdf.
+// Transforms with a stylesheet the xml of the active invoice receipt into its pdf.
 // Return an xml containing the base64 of the pdf receipt and its attributes (if valued)
 // Input: Sync.ContentDocument of receipt's class
 app.post("/getActiveInvoiceReceiptPDF", async (req, res) => {
@@ -1063,6 +1269,9 @@ app.post("/getActiveInvoiceReceiptPDF", async (req, res) => {
     },
     maxRedirects: 21,
   };
+
+  const builder = require("xmlbuilder");
+  var doc = builder.create("ActiveReceiptPDF");
 
   let rawdata = "";
   let dataArea = "";
@@ -1085,17 +1294,22 @@ app.post("/getActiveInvoiceReceiptPDF", async (req, res) => {
     //console.log(dataArea);
     console.log(err);
     FileName = "ERROR";
+    return res.send(doc.toString({ pretty: true }));
   }
-  if (FileName == "ERROR") return;
+  if (FileName == "ERROR") return res.send(doc.toString({ pretty: true }));
 
   FileURL = FileURL.replace("&amp;", "&").trim();
-
-  const builder = require("xmlbuilder");
-  var doc = builder.create("ActiveReceiptPDF");
-
+  let getXMLError = false;
   axios.get(FileURL, config).then((atp) => {
     try {
       let fattura = atp.data; // receipt xml (type: string)
+
+      if (
+        fattura.includes("LoginErrors()") ||
+        (!fattura.includes("<") && !fattura.includes("</"))
+      ) {
+        return res.send(doc.toString({ pretty: true }));
+      }
 
       let pathXSL = "Stylesheets\\FA_Receipt_family-1003.xsl"; // path to stylesheet
       const exec = require("child_process").exec;
@@ -1108,10 +1322,17 @@ app.post("/getActiveInvoiceReceiptPDF", async (req, res) => {
           "invoices/" + fileName + ".xml",
           fattura,
           (err) => {
+            getXMLError = true;
             if (err) throw err;
           }
         );
       })();
+
+      if (getXMLError) {
+        var errorMessage = atp.errorMessage;
+        console.log("error message: " + errorMessage);
+        return res.send(doc.toString({ pretty: true }));
+      }
 
       exec(
         "java XmlTransform " + pathXSL + " invoices\\" + fileName + ".xml",
@@ -1132,38 +1353,53 @@ app.post("/getActiveInvoiceReceiptPDF", async (req, res) => {
               },
             },
           };
-          pdf.create(html, options).toBuffer(function (err, buffer) {
-            if (err) return console.log(err);
-            let rawData = buffer.toString("base64");
+          try {
+            pdf.create(html, options).toBuffer(function (err, buffer) {
+              if (err) return console.log(err);
+              let rawData = buffer.toString("base64");
 
-            let i = 0;
-            let attrs = {};
+              let i = 0;
+              let attrs = {};
 
-            while (dataArea[0].DocumentMetaData[0].Attribute[i] !== undefined) {
-              attrs[dataArea[0].DocumentMetaData[0].Attribute[i].$["id"]] =
-                dataArea[0].DocumentMetaData[0].Attribute[i].AttributeValue ===
-                undefined
-                  ? ""
-                  : dataArea[0].DocumentMetaData[0].Attribute[
-                      i
-                    ].AttributeValue[0]
-                      .toString()
-                      .trim();
-              i++;
-            }
-            for (var [key, value] of Object.entries(attrs)) {
-              if (key === "NomeFile") {
-                value = value.replace(".xml", ".pdf");
-                if (!value.includes(".pdf")) {
-                  value = value + ".pdf";
-                }
+              while (
+                dataArea[0].DocumentMetaData[0].Attribute[i] !== undefined
+              ) {
+                attrs[dataArea[0].DocumentMetaData[0].Attribute[i].$["id"]] =
+                  dataArea[0].DocumentMetaData[0].Attribute[i]
+                    .AttributeValue === undefined
+                    ? ""
+                    : dataArea[0].DocumentMetaData[0].Attribute[
+                        i
+                      ].AttributeValue[0]
+                        .toString()
+                        .trim();
+                i++;
               }
-              doc.ele(key).txt(value).up();
-            }
-            doc.ele("RawData").txt(rawData);
+              let nomeRicevutaAttiva = "";
+              for (var [key, value] of Object.entries(attrs)) {
+                if (key === "NomeFile") {
+                  value = value.replace(".xml", ".pdf");
+                  if (!value.includes(".pdf")) {
+                    value = value + ".pdf";
+                  }
+                  nomeRicevutaAttiva = value;
+                }
+                doc.ele(key).txt(value).up();
+              }
+              doc.ele("RawData").txt(rawData);
 
+              WriteLogSync(
+                "D:\\horsa_docLifeProxy\\log\\RicevuteFattureAttive.txt",
+                "Generato PDF ricevuta attiva nome = " + nomeRicevutaAttiva
+              );
+
+              return res.send(doc.toString({ pretty: true }));
+            });
+          } catch (err) {
+            var errorMessage = "Token Scaduto";
+            console.log("error message: " + errorMessage);
             return res.send(doc.toString({ pretty: true }));
-          });
+          }
         }
       );
     } catch (err) {
@@ -1174,7 +1410,7 @@ app.post("/getActiveInvoiceReceiptPDF", async (req, res) => {
   });
 });
 
-// D. Bettero - call api/v1/cc/attivo/ricevute/listUnacknowledged and for each receipt call api/v1/cc/attivo/ricevute/{id}/download.
+// Call api/v1/cc/attivo/ricevute/listUnacknowledged and for each receipt call api/v1/cc/attivo/ricevute/{id}/download.
 // Return an xml containing the base64 of receipts and their attributes (if valued)
 app.get("/retrieveReceiptsActiveInvoices", async (req, res) => {
   var basicAuth = req.header("authorization");
@@ -1249,6 +1485,7 @@ app.get("/retrieveReceiptsActiveInvoices", async (req, res) => {
       //console.log(err);
       var errorMessage = atp.data.errorMessage;
       console.log("errorMessage: " + errorMessage);
+      return res.send(doc.toString({ pretty: true }));
     }
   });
   //console.log(temp.length);
@@ -1284,7 +1521,7 @@ app.get("/retrieveReceiptsActiveInvoices", async (req, res) => {
 
             const xml = require("xml-parse");
             var xmlInvoice = new xml.DOM(
-              xml.parse(atp2.data.replace(/\uFFFD/g, ""))
+              xml.parse(atp2.data.replace(/\uFFFD/g, "").replaceAll('"', "'"))
             );
 
             var Hash = xmlInvoice.document.getElementsByTagName("Hash")[0];
@@ -1332,6 +1569,7 @@ app.get("/retrieveReceiptsActiveInvoices", async (req, res) => {
         } catch (err) {
           var errorMessage2 = atp2.errorMessage;
           console.log("errorMessage2: " + errorMessage2);
+          return res.send(doc.toString({ pretty: true }));
         }
       });
     }
@@ -1449,6 +1687,248 @@ app.get("/retrieveReceiptsActiveInvoices", async (req, res) => {
   }
   return res.send(doc.toString({ pretty: true }));
 });
+
+// Get datas reading the active invoice's xml.
+// Return an xml containing the datas (if valued)
+// Input: Sync.ContentDocument of active invoice's class
+app.post("/getActiveInvoiceDatas", async (req, res) => {
+  var basicAuth = req.header("authorization");
+  const config = {
+    headers: {
+      Authorization: basicAuth,
+    },
+    maxRedirects: 21,
+  };
+
+  let FileName = "";
+  let documentResource = "";
+  let FileURL = "";
+  let rawdata = "";
+  let dataArea = "";
+  let pid = "";
+  try {
+    rawdata = req.body;
+    dataArea = rawdata.SyncContentDocument.DataArea[0].ContentDocument;
+    pid = dataArea[0].DocumentID[0].ID[0]._;
+    documentResource = dataArea[0].DocumentResource[0] ?? "";
+    FileName = documentResource.FileName[0] ?? "";
+    FileURL = documentResource.URL[0] ?? "";
+    //console.log(dataArea[0].DocumentMetaData[0].Attribute);
+  } catch (err) {
+    //console.log(dataArea);
+    console.log(err);
+    FileName = "ERROR";
+  }
+
+  const builder = require("xmlbuilder");
+  var doc = builder.create("ActiveInvoiceDatas");
+  if (FileName == "ERROR") return res.send(doc.toString({ pretty: true }));
+
+  FileURL = FileURL.replace("&amp;", "&").trim();
+  let getXMLError = false; //DG - 231212
+  axios.get(FileURL, config).then((atp) => {
+    try {
+      let fattura = atp.data.replaceAll('"', "'"); // invoice xml (type: string)
+
+      if (
+        fattura.includes("LoginErrors()") ||
+        (!fattura.includes("<") && !fattura.includes("</"))
+      ) {
+        return res.send(doc.toString({ pretty: true }));
+      }
+
+      // 2023-12-15 - D. Bettero - rimozione eventuale tag <?xml-stylesheet>
+      if (
+        fattura !== undefined &&
+        fattura !== null &&
+        typeof fattura === "string"
+      ) {
+        if (fattura.includes("<?xml-stylesheet")) {
+          let start = fattura.indexOf("<?xml-stylesheet");
+          let end = fattura.indexOf("?>", start);
+          fattura = fattura.substring(0, start) + fattura.substring(end + 2);
+        }
+      }
+
+      // 2023-12-15 - D. Bettero - aggiunta namespace tag root
+      if (
+        fattura !== undefined &&
+        fattura !== null &&
+        typeof fattura === "string"
+      ) {
+        if (
+          fattura.includes("<FatturaElettronica ") &&
+          fattura.includes("</FatturaElettronica>") &&
+          (fattura.includes(
+            "xmlns='http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture"
+          ) ||
+            fattura.includes(
+              'xmlns="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture'
+            ))
+        ) {
+          fattura = fattura.replaceAll(
+            "<FatturaElettronica ",
+            "<p:FatturaElettronica "
+          );
+          fattura = fattura.replaceAll(
+            "</FatturaElettronica>",
+            "</p:FatturaElettronica>"
+          );
+          fattura = fattura.replaceAll(
+            "xmlns='http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture",
+            "xmlns:p='http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture"
+          );
+          fattura = fattura.replaceAll(
+            'xmlns="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture',
+            'xmlns:p="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture'
+          );
+        }
+      }
+
+      const xml = require("xml-parse");
+      var xmlInvoice = new xml.DOM(
+        xml.parse(fattura.replace(/\uFFFD/g, "").trim())
+      );
+
+      const DatiGeneraliDocumento = xmlInvoice.document.getElementsByTagName(
+        "DatiGeneraliDocumento"
+      )[0].innerXML;
+      var xmlDatiGeneraliDocumento = new xml.DOM(
+        xml.parse(DatiGeneraliDocumento)
+      );
+
+      var NumeroFattura =
+        xmlDatiGeneraliDocumento.document.getElementsByTagName("Numero")[0];
+      NumeroFattura =
+        NumeroFattura === undefined ? "" : NumeroFattura.childNodes[0].text;
+      var DataFattura =
+        xmlDatiGeneraliDocumento.document.getElementsByTagName("Data")[0];
+      DataFattura =
+        DataFattura === undefined ? "" : DataFattura.childNodes[0].text;
+      let annoFattura = "";
+      if (DataFattura !== undefined && DataFattura !== null) {
+        annoFattura = DataFattura.toString()
+          .replace("<![CDATA[", "")
+          .replace("]]>", "");
+        if (annoFattura !== "") {
+          annoFattura = annoFattura.substring(0, 4);
+        }
+      }
+
+      const CedentePrestatore =
+        xmlInvoice.document.getElementsByTagName("CedentePrestatore")[0]
+          .innerXML;
+      var xmlCedentePrestatore = new xml.DOM(xml.parse(CedentePrestatore));
+      var PartitaIVACedentePrestatore =
+        xmlCedentePrestatore.document.getElementsByTagName("IdCodice")[0];
+      PartitaIVACedentePrestatore =
+        PartitaIVACedentePrestatore === undefined
+          ? ""
+          : PartitaIVACedentePrestatore.childNodes[0].text;
+
+      let CodiceFiscaleEmittente = "";
+      if (
+        FileName !== undefined &&
+        FileName !== null &&
+        FileName !== "ERROR" &&
+        FileName !== ""
+      ) {
+        CodiceFiscaleEmittente = FileName.toString().replaceAll("IT", "");
+        let end = CodiceFiscaleEmittente.indexOf("_");
+        CodiceFiscaleEmittente = CodiceFiscaleEmittente.substring(0, end);
+      }
+
+      doc
+        .ele("NumeroFattura")
+        .txt(
+          NumeroFattura === undefined
+            ? ""
+            : NumeroFattura.toString()
+                .replace("<![CDATA[", "")
+                .replace("]]>", "")
+        )
+        .up()
+        .ele("DataFattura")
+        .txt(
+          DataFattura === undefined
+            ? ""
+            : DataFattura.toString().replace("<![CDATA[", "").replace("]]>", "")
+        )
+        .up()
+        .ele("AnnoFattura")
+        .txt(
+          annoFattura === undefined
+            ? ""
+            : annoFattura.toString().replace("<![CDATA[", "").replace("]]>", "")
+        )
+        .up()
+        .ele("PartitaIVACedentePrestatore")
+        .txt(
+          PartitaIVACedentePrestatore === undefined
+            ? ""
+            : PartitaIVACedentePrestatore.toString()
+                .replace("<![CDATA[", "")
+                .replace("]]>", "")
+        )
+        .up()
+        .ele("CodiceFiscaleEmittente")
+        .txt(
+          CodiceFiscaleEmittente === undefined
+            ? ""
+            : CodiceFiscaleEmittente.toString()
+                .replace("<![CDATA[", "")
+                .replace("]]>", "")
+        )
+        .up()
+        .ele("pid")
+        .txt(
+          pid === undefined
+            ? ""
+            : pid.toString().replace("<![CDATA[", "").replace("]]>", "")
+        );
+
+      return res.send(doc.toString({ pretty: true }));
+    } catch (err) {
+      //console.log(err);
+      var errorMessage = atp.errorMessage;
+      console.log("errorMessage: " + errorMessage);
+      return res.send(doc.toString({ pretty: true }));
+    }
+  });
+});
+
+function WriteLogSync(nameFile, newLine) {
+  if (
+    nameFile === undefined ||
+    nameFile === null ||
+    !nameFile ||
+    !nameFile.trim().includes(".txt") ||
+    newLine === undefined ||
+    newLine === null ||
+    !newLine
+  ) {
+    return;
+  }
+
+  let currentdate = new Date();
+  let datetime =
+    currentdate.getDate() +
+    "/" +
+    (currentdate.getMonth() + 1) +
+    "/" +
+    currentdate.getFullYear() +
+    "  " +
+    currentdate.getHours().toString().padStart(2, "0") +
+    ":" +
+    currentdate.getMinutes().toString().padStart(2, "0") +
+    ":" +
+    currentdate.getSeconds().toString().padStart(2, "0");
+
+  let data = fs.readFileSync(nameFile, "utf-8");
+  let newValue = data + "\n" + datetime + "   -   " + newLine;
+  fs.writeFileSync(nameFile, newValue, "utf-8");
+  return;
+}
 
 //var httpsServer = https.createServer(options, app);
 //TODO: Change back to https
