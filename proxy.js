@@ -345,6 +345,18 @@ app.get("/retrievePassiveInvoices", async (req, res) => {
             //console.log(base64Invoice);
             //console.log(typeof atp2.data);
 
+            if (
+              atp2.data.includes("<FatturaElettronicaHeader") &&
+              atp2.data.includes("/FatturaElettronicaHeader>")
+            ) {
+              let inizio = atp2.data.indexOf("<FatturaElettronicaHeader");
+              let fine = atp2.data.indexOf("/FatturaElettronicaHeader>");
+              atp2.data = atp2.data.substring(
+                inizio,
+                fine + "/FatturaElettronicaHeader>".length
+              );
+            }
+
             const xml = require("xml-parse");
             var xmlInvoice = new xml.DOM(
               xml.parse(
@@ -452,7 +464,7 @@ app.get("/retrievePassiveInvoices", async (req, res) => {
             temp[i].DenominazionePrestatore =
               DenominazionePrestatore === undefined
                 ? ""
-                : DenominazionePrestatore.childNodes[0].text;
+                : DenominazionePrestatore.childNodes[0].text.trim();
             //console.log(PaeseCommittente.childNodes[0].text);
             temp[i].PaeseCommittente =
               PaeseCommittente === undefined
@@ -681,7 +693,7 @@ app.post("/getActiveInvoicePDF", async (req, res) => {
   if (FileName == "ERROR") return res.send(doc.toString({ pretty: true }));
 
   FileURL = FileURL.replace("&amp;", "&").trim();
-  let getXMLError = false; //DG - 231212
+  let getXMLError = false; //
   axios.get(FileURL, config).then((atp) => {
     try {
       let fattura = atp.data.replaceAll('"', "'"); // invoice xml (type: string)
@@ -693,7 +705,7 @@ app.post("/getActiveInvoicePDF", async (req, res) => {
         return res.send(doc.toString({ pretty: true }));
       }
 
-      // 2023-12-15 - D. Bettero - rimozione eventuale tag <?xml-stylesheet>
+      // 2023-12-15 - Rimozione eventuale tag <?xml-stylesheet>
       if (
         fattura !== undefined &&
         fattura !== null &&
@@ -706,7 +718,7 @@ app.post("/getActiveInvoicePDF", async (req, res) => {
         }
       }
 
-      // 2023-12-15 - D. Bettero - aggiunta namespace tag root
+      // 2023-12-15 - Aggiunta namespace tag root
       if (
         fattura !== undefined &&
         fattura !== null &&
@@ -964,7 +976,7 @@ app.post("/getPassiveInvoicePDF", async (req, res) => {
         }
       }
 
-      // 2023-12-15 - D. Bettero - aggiunta namespace tag root
+      // 2023-12-15 - Aggiunta namespace tag root
       if (
         fattura !== undefined &&
         fattura !== null &&
@@ -980,22 +992,81 @@ app.post("/getPassiveInvoicePDF", async (req, res) => {
               'xmlns="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture'
             ))
         ) {
-          fattura = fattura.replaceAll(
-            "<FatturaElettronica ",
-            "<p:FatturaElettronica "
-          );
-          fattura = fattura.replaceAll(
-            "</FatturaElettronica>",
-            "</p:FatturaElettronica>"
-          );
-          fattura = fattura.replaceAll(
-            "xmlns='http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture",
-            "xmlns:p='http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture"
-          );
-          fattura = fattura.replaceAll(
-            'xmlns="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture',
-            'xmlns:p="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture'
-          );
+          if (!fattura.includes("xmlns:p")) {
+            fattura = fattura.replaceAll(
+              "<FatturaElettronica ",
+              "<p:FatturaElettronica "
+            );
+            fattura = fattura.replaceAll(
+              "</FatturaElettronica>",
+              "</p:FatturaElettronica>"
+            );
+            fattura = fattura.replaceAll(
+              "xmlns='http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture",
+              "xmlns:p='http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture"
+            );
+            fattura = fattura.replaceAll(
+              'xmlns="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture',
+              'xmlns:p="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture'
+            );
+          }
+
+          if (!fattura.includes("xmlns:a")) {
+            fattura = fattura.replaceAll(
+              "<FatturaElettronica ",
+              "<a:FatturaElettronica "
+            );
+            fattura = fattura.replaceAll(
+              "</FatturaElettronica>",
+              "</a:FatturaElettronica>"
+            );
+            fattura = fattura.replaceAll(
+              "xmlns='http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture",
+              "xmlns:a='http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture"
+            );
+            fattura = fattura.replaceAll(
+              'xmlns="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture',
+              'xmlns:a="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture'
+            );
+          }
+
+          if (!fattura.includes("xmlns:d")) {
+            fattura = fattura.replaceAll(
+              "<FatturaElettronica ",
+              "<d:FatturaElettronica "
+            );
+            fattura = fattura.replaceAll(
+              "</FatturaElettronica>",
+              "</d:FatturaElettronica>"
+            );
+            fattura = fattura.replaceAll(
+              "xmlns='http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture",
+              "xmlns:d='http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture"
+            );
+            fattura = fattura.replaceAll(
+              'xmlns="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture',
+              'xmlns:d="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture'
+            );
+          }
+
+          if (!fattura.includes("xmlns:b")) {
+            fattura = fattura.replaceAll(
+              "<FatturaElettronica ",
+              "<b:FatturaElettronica "
+            );
+            fattura = fattura.replaceAll(
+              "</FatturaElettronica>",
+              "</b:FatturaElettronica>"
+            );
+            fattura = fattura.replaceAll(
+              "xmlns='http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture",
+              "xmlns:b='http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture"
+            );
+            fattura = fattura.replaceAll(
+              'xmlns="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture',
+              'xmlns:b="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture'
+            );
+          }
         }
       }
 
@@ -1179,7 +1250,7 @@ app.post("/getPassiveInvoiceAttachment", async (req, res) => {
         doc.ele(key).txt(value).up();
       }
 
-      // 2023-12-15 - D. Bettero - rimozione eventuale tag <?xml-stylesheet>
+      // 2023-12-15 - Rimozione eventuale tag <?xml-stylesheet>
       if (
         fattura !== undefined &&
         fattura !== null &&
@@ -1192,62 +1263,75 @@ app.post("/getPassiveInvoiceAttachment", async (req, res) => {
         }
       }
 
-      const xml = require("xml-parse");
-      var xmlInvoice = new xml.DOM(
-        xml.parse(fattura.replace(/\uFFFD/g, "").replaceAll('"', "'"))
-      );
-
-      i = 0;
-      let attchs = doc.ele("Attachments");
-      while (
-        xmlInvoice.document.getElementsByTagName("NomeAttachment")[i] !==
-          undefined &&
-        xmlInvoice.document.getElementsByTagName("Attachment")[i] !== undefined
+      if (
+        fattura.includes("Allegati") ||
+        fattura.includes("NomeAttachment") ||
+        fattura.includes("Attachment")
       ) {
-        let nomeAttachment =
-          xmlInvoice.document.getElementsByTagName("NomeAttachment")[i]
-            .childNodes[0].text ?? "";
+        const xml = require("xml-parse");
+        var xmlInvoice = new xml.DOM(
+          xml.parse(fattura.replace(/\uFFFD/g, "").replaceAll('"', "'"))
+        );
 
-        nomeAttachment = nomeAttachment
-          .replaceAll("<![CDATA[", "")
-          .replaceAll("]]>", "");
-        if (
-          !nomeAttachment.includes(".pdf") &&
-          !nomeAttachment.includes(".PDF") &&
-          !nomeAttachment.includes(".xml") &&
-          !nomeAttachment.includes(".XML") &&
-          !nomeAttachment.includes(".xls") &&
-          !nomeAttachment.includes(".XLS") &&
-          !nomeAttachment.includes(".txt") &&
-          !nomeAttachment.includes(".TXT") &&
-          !nomeAttachment.includes(".md") &&
-          !nomeAttachment.includes(".MD")
+        i = 0;
+        let attchs = doc.ele("Attachments");
+        while (
+          xmlInvoice.document.getElementsByTagName("NomeAttachment")[i] !==
+            undefined &&
+          xmlInvoice.document.getElementsByTagName("Attachment")[i] !==
+            undefined
         ) {
-          nomeAttachment = nomeAttachment + ".pdf";
+          let nomeAttachment =
+            xmlInvoice.document.getElementsByTagName("NomeAttachment")[i]
+              .childNodes[0].text ?? "";
+
+          nomeAttachment = nomeAttachment
+            .replaceAll("<![CDATA[", "")
+            .replaceAll("]]>", "");
+          if (
+            !nomeAttachment.includes(".pdf") &&
+            !nomeAttachment.includes(".PDF") &&
+            !nomeAttachment.includes(".xml") &&
+            !nomeAttachment.includes(".XML") &&
+            !nomeAttachment.includes(".xls") &&
+            !nomeAttachment.includes(".XLS") &&
+            !nomeAttachment.includes(".txt") &&
+            !nomeAttachment.includes(".TXT") &&
+            !nomeAttachment.includes(".md") &&
+            !nomeAttachment.includes(".MD")
+          ) {
+            nomeAttachment = nomeAttachment + ".pdf";
+          }
+
+          let rawDataAttachment =
+            xmlInvoice.document.getElementsByTagName("Attachment")[i]
+              .childNodes[0].text ?? "";
+          attchs
+            .ele("Attachment")
+            .ele("AttachmentFileName")
+            .txt(nomeAttachment)
+            .up()
+            .ele("RawData")
+            .txt(
+              rawDataAttachment
+                .toString()
+                .trim()
+                .replaceAll(" ", "")
+                .replaceAll("\n", "")
+                .replaceAll("&amp;#xA;", "")
+                .replaceAll("&#xA;", "")
+            )
+            .up();
+
+          i++;
         }
 
-        let rawDataAttachment =
-          xmlInvoice.document.getElementsByTagName("Attachment")[i]
-            .childNodes[0].text ?? "";
-        attchs
-          .ele("Attachment")
-          .ele("AttachmentFileName")
-          .txt(nomeAttachment)
-          .up()
-          .ele("RawData")
-          .txt(
-            rawDataAttachment.trim().replaceAll(" ", "").replaceAll("\n", "")
-          )
-          .up();
-
-        i++;
+        WriteLogSync(
+          "D:\\horsa_docLifeProxy\\log\\AllegatiFatturePassive.txt",
+          "Generato PDF allegato/i fattura passiva nome = " +
+            nomeAllegatoFatturaPassiva
+        );
       }
-
-      WriteLogSync(
-        "D:\\horsa_docLifeProxy\\log\\AllegatiFatturePassive.txt",
-        "Generato PDF allegato/i fattura passiva nome = " +
-          nomeAllegatoFatturaPassiva
-      );
 
       return res.send(doc.toString({ pretty: true }));
     } catch (err) {
@@ -1725,7 +1809,7 @@ app.post("/getActiveInvoiceDatas", async (req, res) => {
   if (FileName == "ERROR") return res.send(doc.toString({ pretty: true }));
 
   FileURL = FileURL.replace("&amp;", "&").trim();
-  let getXMLError = false; //DG - 231212
+  let getXMLError = false; //
   axios.get(FileURL, config).then((atp) => {
     try {
       let fattura = atp.data.replaceAll('"', "'"); // invoice xml (type: string)
@@ -1737,7 +1821,7 @@ app.post("/getActiveInvoiceDatas", async (req, res) => {
         return res.send(doc.toString({ pretty: true }));
       }
 
-      // 2023-12-15 - D. Bettero - rimozione eventuale tag <?xml-stylesheet>
+      // 2023-12-15 - Rimozione eventuale tag <?xml-stylesheet>
       if (
         fattura !== undefined &&
         fattura !== null &&
@@ -1750,7 +1834,7 @@ app.post("/getActiveInvoiceDatas", async (req, res) => {
         }
       }
 
-      // 2023-12-15 - D. Bettero - aggiunta namespace tag root
+      // 2023-12-15 - Aggiunta namespace tag root
       if (
         fattura !== undefined &&
         fattura !== null &&
@@ -1902,7 +1986,7 @@ function WriteLogSync(nameFile, newLine) {
     nameFile === undefined ||
     nameFile === null ||
     !nameFile ||
-    !nameFile.trim().includes(".txt") ||
+    !nameFile.includes(".txt") ||
     newLine === undefined ||
     newLine === null ||
     !newLine
@@ -1910,6 +1994,7 @@ function WriteLogSync(nameFile, newLine) {
     return;
   }
 
+  nameFile = nameFile.replaceAll(".txt", "");
   let currentdate = new Date();
   let datetime =
     currentdate.getDate() +
@@ -1924,9 +2009,21 @@ function WriteLogSync(nameFile, newLine) {
     ":" +
     currentdate.getSeconds().toString().padStart(2, "0");
 
-  let data = fs.readFileSync(nameFile, "utf-8");
-  let newValue = data + "\n" + datetime + "   -   " + newLine;
-  fs.writeFileSync(nameFile, newValue, "utf-8");
+  let yyyyMMdd =
+    currentdate.getFullYear().toString() +
+    (currentdate.getMonth() + 1).toString() +
+    currentdate.getDate().toString();
+
+  nameFile = nameFile + "_" + yyyyMMdd + ".txt";
+
+  if (fs.existsSync(nameFile)) {
+    let data = fs.readFileSync(nameFile, "utf-8");
+    let newValue = datetime + "   -   " + newLine + "\n" + data;
+    fs.writeFileSync(nameFile, newValue, "utf-8");
+  } else {
+    let newValue = datetime + "   -   " + newLine + "\n";
+    fs.writeFileSync(nameFile, newValue, "utf-8");
+  }
   return;
 }
 
