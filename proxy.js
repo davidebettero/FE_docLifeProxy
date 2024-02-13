@@ -139,6 +139,8 @@ app.post("/postToDocLife", (req, res) => {
   var rawdata = req.body;
   var folderID = req.query.folder;
   var overwrite = req.query.overwrite;
+  var docLifeAttributeNodeRef = req.query.doclifeNodeRef;
+  var docLifeAttributeAspect = req.query.docLifeAspect;
   var horsaFEUrl = req.header("targetURL");
   let dataArea = rawdata.SyncContentDocument.DataArea[0].ContentDocument;
   let documentID = dataArea[0].DocumentID[0].ID[0]._;
@@ -180,7 +182,6 @@ app.post("/postToDocLife", (req, res) => {
         folderID +
         "/uploadornewversion";
       var basicAuth = req.header("authorization");
-      console.log("DOCLIFE");
       axios
         .post(callUrl, form, {
           headers: {
@@ -195,12 +196,7 @@ app.post("/postToDocLife", (req, res) => {
           //Set Document Type
           //const resSetDocumentType  = axios.put('https://'+horsaFEUrl+'/doclife/api/document/'+nodeRef+'/uploadornewversion';, { hello: 'world' });
           //Get Document Type Configuration
-          var result = config.filter((obj) => obj.idmdocument == Documenttype);
-          console.log(result[0].doclife);
-
-          let docLifeAttributeNodeRef = result[0].doclife.doclifeNodeRef ?? "";
-          let docLifeAttributeAspect = result[0].doclife.docLifeAspect ?? "";
-          let attributes = result[0].doclife.attributes ?? "";
+          //var result=config.filter(obj=> obj.idmdocument == Documenttype);
 
           const responseData = {
             id: documentID,
@@ -227,6 +223,7 @@ app.post("/postToDocLife", (req, res) => {
               console.log(respAttribute);
               res.setHeader("Content-Type", "application/json");
               const jsonContent = JSON.stringify(responseData);
+
               return res.end(jsonContent);
             })
             .catch(function (errorAttribute) {
@@ -333,9 +330,9 @@ app.get("/retrievePassiveInvoices", async (req, res) => {
                 atp2.data.indexOf("</ns3:FatturaElettronica>") +
                   "</ns3:FatturaElettronica>".length
               );
-            let base64Invoice = btoa(
+            let base64Invoice = Buffer.from(
               atp2.data.replace(/\uFFFD/g, "").replaceAll('"', "'")
-            );
+            ).toString("base64");
             temp[i].RawData =
               base64Invoice === undefined ||
               base64Invoice === null ||
@@ -423,6 +420,10 @@ app.get("/retrievePassiveInvoices", async (req, res) => {
               xmlInvoiceCedentePrestatore.document.getElementsByTagName(
                 "Denominazione"
               )[0];
+            var CodiceFiscalePrestatore =
+              xmlInvoiceCedentePrestatore.document.getElementsByTagName(
+                "CodiceFiscale"
+              )[0];
             //console.log(PaesePrestatore.childNodes[0].text);
             //console.log(CodicePrestatore.childNodes[0].text);
             //console.log(DenominazionePrestatore.childNodes[0].text);
@@ -436,6 +437,10 @@ app.get("/retrievePassiveInvoices", async (req, res) => {
             var CodiceCommittente =
               xmlInvoiceCommittente.document.getElementsByTagName(
                 "IdCodice"
+              )[0];
+            var CodiceFiscale =
+              xmlInvoiceCommittente.document.getElementsByTagName(
+                "CodiceFiscale"
               )[0];
             //console.log(PaeseCommittente.childNodes[0].text);
             //console.log(CodiceCommittente.childNodes[0].text);
@@ -465,6 +470,10 @@ app.get("/retrievePassiveInvoices", async (req, res) => {
               DenominazionePrestatore === undefined
                 ? ""
                 : DenominazionePrestatore.childNodes[0].text.trim();
+            temp[i].CodiceFiscalePrestatore =
+              CodiceFiscalePrestatore === undefined
+                ? ""
+                : CodiceFiscalePrestatore.childNodes[0].text.trim();
             //console.log(PaeseCommittente.childNodes[0].text);
             temp[i].PaeseCommittente =
               PaeseCommittente === undefined
@@ -475,6 +484,10 @@ app.get("/retrievePassiveInvoices", async (req, res) => {
               CodiceCommittente === undefined
                 ? ""
                 : CodiceCommittente.childNodes[0].text;
+            temp[i].CodiceFiscale =
+              CodiceFiscale === undefined
+                ? ""
+                : CodiceFiscale.childNodes[0].text;
           }
         } catch (err) {
           var errorMessage2 = atp2.errorMessage;
@@ -626,6 +639,15 @@ app.get("/retrievePassiveInvoices", async (req, res) => {
               .replace("]]>", "")
       )
       .up()
+      .ele("CodiceFiscalePrestatore")
+      .txt(
+        temp[i].CodiceFiscalePrestatore === undefined
+          ? ""
+          : temp[i].CodiceFiscalePrestatore.toString()
+              .replace("<![CDATA[", "")
+              .replace("]]>", "")
+      )
+      .up()
       .ele("PaeseCommittente")
       .txt(
         temp[i].PaeseCommittente === undefined
@@ -640,6 +662,15 @@ app.get("/retrievePassiveInvoices", async (req, res) => {
         temp[i].CodiceCommittente === undefined
           ? ""
           : temp[i].CodiceCommittente.toString()
+              .replace("<![CDATA[", "")
+              .replace("]]>", "")
+      )
+      .up()
+      .ele("CodiceFiscaleCommittente")
+      .txt(
+        temp[i].CodiceFiscale === undefined
+          ? ""
+          : temp[i].CodiceFiscale.toString()
               .replace("<![CDATA[", "")
               .replace("]]>", "")
       )
@@ -693,7 +724,7 @@ app.post("/getActiveInvoicePDF", async (req, res) => {
   if (FileName == "ERROR") return res.send(doc.toString({ pretty: true }));
 
   FileURL = FileURL.replace("&amp;", "&").trim();
-  let getXMLError = false; //
+  let getXMLError = false;
   axios.get(FileURL, config).then((atp) => {
     try {
       let fattura = atp.data.replaceAll('"', "'"); // invoice xml (type: string)
@@ -705,7 +736,7 @@ app.post("/getActiveInvoicePDF", async (req, res) => {
         return res.send(doc.toString({ pretty: true }));
       }
 
-      // 2023-12-15 - Rimozione eventuale tag <?xml-stylesheet>
+      // Rimozione eventuale tag <?xml-stylesheet>
       if (
         fattura !== undefined &&
         fattura !== null &&
@@ -718,7 +749,7 @@ app.post("/getActiveInvoicePDF", async (req, res) => {
         }
       }
 
-      // 2023-12-15 - Aggiunta namespace tag root
+      // Aggiunta namespace tag root
       if (
         fattura !== undefined &&
         fattura !== null &&
@@ -880,6 +911,7 @@ app.post("/getPassiveInvoicePDF", async (req, res) => {
 
   try {
     rawdata = req.body;
+    //console.log(req);
     dataArea = rawdata.SyncContentDocument.DataArea[0].ContentDocument;
     pid = dataArea[0].DocumentID[0].ID[0]._;
   } catch (err) {
@@ -908,7 +940,8 @@ app.post("/getPassiveInvoicePDF", async (req, res) => {
 
     if (
       dataArea[0].DocumentMetaData[0].Attribute[j].$["id"] ===
-      "DataRicezioneFattura"
+        "DataRicezioneFattura" &&
+      dataArea[0].DocumentMetaData[0].Attribute[j].AttributeValue !== undefined
     ) {
       dataRicezione = dataArea[0].DocumentMetaData[0].Attribute[
         j
@@ -963,7 +996,7 @@ app.post("/getPassiveInvoicePDF", async (req, res) => {
         return res.send(doc.toString({ pretty: true }));
       }
 
-      // 2023-12-15 - D. Bettero - rimozione eventuale tag <?xml-stylesheet>
+      // Rimozione eventuale tag <?xml-stylesheet>
       if (
         fattura !== undefined &&
         fattura !== null &&
@@ -976,7 +1009,7 @@ app.post("/getPassiveInvoicePDF", async (req, res) => {
         }
       }
 
-      // 2023-12-15 - Aggiunta namespace tag root
+      // Aggiunta namespace tag root
       if (
         fattura !== undefined &&
         fattura !== null &&
@@ -1250,7 +1283,7 @@ app.post("/getPassiveInvoiceAttachment", async (req, res) => {
         doc.ele(key).txt(value).up();
       }
 
-      // 2023-12-15 - Rimozione eventuale tag <?xml-stylesheet>
+      // Rimozione eventuale tag <?xml-stylesheet>
       if (
         fattura !== undefined &&
         fattura !== null &&
@@ -1320,6 +1353,7 @@ app.post("/getPassiveInvoiceAttachment", async (req, res) => {
                 .replaceAll("\n", "")
                 .replaceAll("&amp;#xA;", "")
                 .replaceAll("&#xA;", "")
+                .replaceAll("&#x0a;", "")
             )
             .up();
 
@@ -1426,7 +1460,7 @@ app.post("/getActiveInvoiceReceiptPDF", async (req, res) => {
           var html = resultString;
           var options = {
             format: "A4",
-            orientation: "portrait",
+            orientation: "landscape",
             footer: {
               height: "1mm",
               contents: {
@@ -1594,7 +1628,9 @@ app.get("/retrieveReceiptsActiveInvoices", async (req, res) => {
             atp2.data != null &&
             atp2.data !== ""
           ) {
-            let base64Invoice = btoa(atp2.data.replace(/\uFFFD/g, ""));
+            let base64Invoice = Buffer.from(
+              atp2.data.replace(/\uFFFD/g, "")
+            ).toString("base64");
             temp[i].RawData =
               base64Invoice === undefined ||
               base64Invoice === null ||
@@ -1809,7 +1845,7 @@ app.post("/getActiveInvoiceDatas", async (req, res) => {
   if (FileName == "ERROR") return res.send(doc.toString({ pretty: true }));
 
   FileURL = FileURL.replace("&amp;", "&").trim();
-  let getXMLError = false; //
+  let getXMLError = false;
   axios.get(FileURL, config).then((atp) => {
     try {
       let fattura = atp.data.replaceAll('"', "'"); // invoice xml (type: string)
@@ -1821,7 +1857,7 @@ app.post("/getActiveInvoiceDatas", async (req, res) => {
         return res.send(doc.toString({ pretty: true }));
       }
 
-      // 2023-12-15 - Rimozione eventuale tag <?xml-stylesheet>
+      // Rimozione eventuale tag <?xml-stylesheet>
       if (
         fattura !== undefined &&
         fattura !== null &&
@@ -1834,7 +1870,7 @@ app.post("/getActiveInvoiceDatas", async (req, res) => {
         }
       }
 
-      // 2023-12-15 - Aggiunta namespace tag root
+      // Aggiunta namespace tag root
       if (
         fattura !== undefined &&
         fattura !== null &&
@@ -1922,6 +1958,28 @@ app.post("/getActiveInvoiceDatas", async (req, res) => {
         CodiceFiscaleEmittente = CodiceFiscaleEmittente.substring(0, end);
       }
 
+      const CessionarioCommittente = xmlInvoice.document.getElementsByTagName(
+        "CessionarioCommittente"
+      )[0].innerXML;
+      var xmlCessionarioCommittente = new xml.DOM(
+        xml.parse(CessionarioCommittente)
+      );
+      var RagioneSocialeCommittente =
+        xmlCessionarioCommittente.document.getElementsByTagName(
+          "Denominazione"
+        )[0];
+      RagioneSocialeCommittente =
+        RagioneSocialeCommittente === undefined
+          ? ""
+          : RagioneSocialeCommittente.childNodes[0].text;
+
+      var PartitaIVACommittente =
+        xmlCessionarioCommittente.document.getElementsByTagName("IdCodice")[0];
+      PartitaIVACommittente =
+        PartitaIVACommittente === undefined
+          ? ""
+          : PartitaIVACommittente.childNodes[0].text;
+
       doc
         .ele("NumeroFattura")
         .txt(
@@ -1969,6 +2027,24 @@ app.post("/getActiveInvoiceDatas", async (req, res) => {
           pid === undefined
             ? ""
             : pid.toString().replace("<![CDATA[", "").replace("]]>", "")
+        )
+        .up()
+        .ele("RagioneSocialeCommittente")
+        .txt(
+          RagioneSocialeCommittente === undefined
+            ? ""
+            : RagioneSocialeCommittente.toString()
+                .replace("<![CDATA[", "")
+                .replace("]]>", "")
+        )
+        .up()
+        .ele("PartitaIVACommittente")
+        .txt(
+          PartitaIVACommittente === undefined
+            ? ""
+            : PartitaIVACommittente.toString()
+                .replace("<![CDATA[", "")
+                .replace("]]>", "")
         );
 
       return res.send(doc.toString({ pretty: true }));
